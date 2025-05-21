@@ -30,12 +30,33 @@ export default function Home() {
               <p className="text-sm text-gray-600 dark:text-gray-300">Every action is recorded with precise timing information</p>
             </div>
           </div>
-          <div className="text-center">
+          
+          <div className="new-feature bg-blue-50 dark:bg-blue-900 p-4 rounded shadow-sm mb-8">
+            <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-300">New: AI-Powered Behavior Analysis</h3>
+            <p className="text-sm text-blue-600 dark:text-blue-200 mb-3">
+              Our system now analyzes typing behavior to detect if text was written by a human or generated/pasted by AI.
+              The analysis considers typing rhythm, pauses, corrections, and more.
+            </p>
+            <ul className="list-disc pl-5 text-sm text-blue-600 dark:text-blue-200 mb-3">
+              <li>Record a reference sample to calibrate to your typing style</li>
+              <li>Submit your text for cheating detection analysis</li>
+              <li>View detailed metrics about your typing behavior</li>
+              <li>Compare sessions in the admin dashboard</li>
+            </ul>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/editor"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors text-center"
             >
               Try the Editor Demo
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-block bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors text-center"
+            >
+              View Dashboard
             </Link>
           </div>
         </div>

@@ -2,75 +2,140 @@
 
 import { useState } from 'react';
 import Editor from '@/components/Editor';
+import Calibration from '@/components/Calibration';
+import AnalysisDashboard from '@/components/AnalysisDashboard';
 import { useEditorStore } from '@/store/editorStore';
 
 export default function EditorPage() {
   const { actions, clearActions } = useEditorStore();
   const [showActions, setShowActions] = useState(false);
+  const [calibrationComplete, setCalibrationComplete] = useState(false);
+  const [referenceActions, setReferenceActions] = useState<any[]>([]);
+  const [userId] = useState<string>(`user_${Date.now().toString()}`);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'editor' | 'analysis'>('editor');
+
+  // Handle completion of calibration
+  const handleCalibrationComplete = (actions: any[]) => {
+    setReferenceActions(actions);
+    setCalibrationComplete(true);
+  };
+
+  // Handle analysis results
+  const handleAnalysisResults = (results: any) => {
+    setAnalysisResult(results);
+    setActiveTab('analysis');
+  };
 
   return (
     <main className="flex min-h-screen flex-col p-8">
       <h1 className="text-3xl font-bold mb-8">TRACE - Editor Behavior Tracking</h1>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="editor-section">
-          <Editor />
+      {/* Calibration Step */}
+      {!calibrationComplete && (
+        <div className="mb-10">
+          <Calibration onComplete={handleCalibrationComplete} userId={userId} />
         </div>
-        
-        <div className="actions-section">
-          <div className="bg-gray-100 p-4 rounded-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Tracked Actions</h2>
-              <div className="space-x-2">
-                <button 
-                  onClick={() => setShowActions(!showActions)}
-                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                  {showActions ? 'Hide' : 'Show'} Actions
-                </button>
-                <button 
-                  onClick={clearActions}
-                  className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                  Clear
-                </button>
-              </div>
+      )}
+      
+      {/* Main Content when calibration is complete */}
+      {calibrationComplete && (
+        <div className="flex flex-col">
+          {/* Tabs */}
+          <div className="tabs mb-6 border-b">
+            <div className="flex">
+              <button
+                className={`py-2 px-4 ${activeTab === 'editor' ? 'border-b-2 border-blue-500 font-semibold' : 'text-gray-500'}`}
+                onClick={() => setActiveTab('editor')}
+              >
+                Editor
+              </button>
+              <button
+                className={`py-2 px-4 ${activeTab === 'analysis' ? 'border-b-2 border-blue-500 font-semibold' : 'text-gray-500'}`}
+                onClick={() => setActiveTab('analysis')}
+                disabled={!analysisResult}
+              >
+                Analysis Results
+              </button>
             </div>
+          </div>
+          
+          {/* Tab Content */}
+          <div className="tab-content">
+            {activeTab === 'editor' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="editor-section">
+                  <Editor 
+                    referenceActions={referenceActions}
+                    onAnalyze={handleAnalysisResults}
+                    userId={userId}
+                  />
+                </div>
+                
+                <div className="actions-section">
+                  <div className="bg-gray-100 p-4 rounded-md">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-semibold">Tracked Actions</h2>
+                      <div className="space-x-2">
+                        <button 
+                          onClick={() => setShowActions(!showActions)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        >
+                          {showActions ? 'Hide' : 'Show'} Actions
+                        </button>
+                        <button 
+                          onClick={clearActions}
+                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {showActions && (
+                      <div className="actions-log h-[500px] overflow-y-auto bg-white p-4 rounded border">
+                        {actions.length === 0 ? (
+                          <p className="text-gray-500">No actions recorded yet. Start typing in the editor.</p>
+                        ) : (
+                          <ul className="space-y-2">
+                            {actions.map((action, index) => (
+                              <li key={index} className="text-sm border-b pb-1">
+                                <span className="font-mono bg-gray-100 px-1 rounded mr-2">
+                                  {new Date(action.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit', fractionalSecondDigits: 3})}
+                                </span>
+                                <span className={`inline-block w-16 ${getActionColor(action.type)}`}>
+                                  {action.type}
+                                </span>
+                                {action.content && <span className="ml-2">{truncate(action.content, 30)}</span>}
+                                {action.position && (
+                                  <span className="ml-2 text-gray-500">
+                                    pos: {action.position.from}-{action.position.to}
+                                  </span>
+                                )}
+                                {action.pauseDuration && (
+                                  <span className="ml-2 text-yellow-600">
+                                    ({(action.pauseDuration / 1000).toFixed(1)}s)
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             
-            {showActions && (
-              <div className="actions-log h-[500px] overflow-y-auto bg-white p-4 rounded border">
-                {actions.length === 0 ? (
-                  <p className="text-gray-500">No actions recorded yet. Start typing in the editor.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {actions.map((action, index) => (
-                      <li key={index} className="text-sm border-b pb-1">
-                        <span className="font-mono bg-gray-100 px-1 rounded mr-2">
-                          {new Date(action.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit', fractionalSecondDigits: 3})}
-                        </span>
-                        <span className={`inline-block w-16 ${getActionColor(action.type)}`}>
-                          {action.type}
-                        </span>
-                        {action.content && <span className="ml-2">{truncate(action.content, 30)}</span>}
-                        {action.position && (
-                          <span className="ml-2 text-gray-500">
-                            pos: {action.position.from}-{action.position.to}
-                          </span>
-                        )}
-                        {action.pauseDuration && (
-                          <span className="ml-2 text-yellow-600">
-                            ({(action.pauseDuration / 1000).toFixed(1)}s)
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+            {activeTab === 'analysis' && analysisResult && (
+              <div className="analysis-container">
+                <AnalysisDashboard result={analysisResult} />
               </div>
             )}
           </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
