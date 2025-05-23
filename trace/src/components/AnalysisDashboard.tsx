@@ -1,32 +1,81 @@
 import React from 'react';
 
+interface DetailedMetrics {
+  averageTypingSpeed: number;
+  standardDeviationTypingSpeed: number;
+  pauseFrequency: number;
+  deletionRate: number;
+  cursorJumpFrequency: number;
+  rhythmConsistency: number;
+  burstiness: number;
+  dwellTimeVariability: number;
+  flightTimeVariability: number;
+  backtrackingFrequency: number;
+  correctionPatterns: number;
+  typingAcceleration: number;
+  fatigueIndicators: number;
+  consistencyScore: number;
+  pausePatterns: {
+    shortPauses: number;
+    mediumPauses: number;
+    longPauses: number;
+    averagePauseLength: number;
+    pauseDistribution: number[];
+  };
+  wordsPerMinute: number;
+  charactersPerMinute: number;
+  revisionsPerWord: number;
+}
+
+interface SuspiciousActivity {
+  type: 'paste' | 'speed_anomaly' | 'rhythm_anomaly' | 'pause_anomaly' | 'ai_content' | 'behavior_deviation';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  evidence: string[];
+  confidence: number;
+  timestamp?: number;
+  affectedContent?: string;
+}
+
+interface ReferenceComparison {
+  overall: number;
+  breakdown: {
+    typingSpeed: { similarity: number; deviation: number; explanation: string };
+    rhythm: { similarity: number; deviation: number; explanation: string };
+    pausePatterns: { similarity: number; deviation: number; explanation: string };
+    deletionRate: { similarity: number; deviation: number; explanation: string };
+    dwellTime: { similarity: number; deviation: number; explanation: string };
+    flightTime: { similarity: number; deviation: number; explanation: string };
+  };
+  statisticalSignificance: number;
+  profileMatchScore: number;
+}
+
 interface AnalysisResult {
   isHuman: boolean;
   confidenceScore: number;
-  metrics: {
-    averageTypingSpeed: number;
-    pauseFrequency: number;
-    deletionRate: number;
-    cursorJumpFrequency: number;
-    rhythmConsistency: number;
-    pausePatterns: {
-      beforeDifficultWords: number;
-      atPunctuations: number;
-    };
-  };
-  anomalies: string[];
-  referenceComparison?: {
-    overall: number;
-    typingSpeed: number;
-    rhythm: number;
-    deletionRate: number;
-    pauseFrequency: number;
-  };
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  metrics: DetailedMetrics;
+  suspiciousActivities: SuspiciousActivity[];
+  referenceComparison?: ReferenceComparison;
   aiTextDetection?: {
     isAiGenerated: boolean;
     score: number;
     provider: string;
+    error?: string;
   };
+  summary: {
+    totalFlags: number;
+    highRiskFlags: number;
+    behaviorScore: number;
+    contentScore: number;
+    overallAssessment: string;
+  };
+  timeline: {
+    timestamp: number;
+    event: string;
+    risk: 'low' | 'medium' | 'high';
+  }[];
 }
 
 interface AnalysisDashboardProps {
@@ -34,263 +83,312 @@ interface AnalysisDashboardProps {
 }
 
 const AnalysisDashboard = ({ result }: AnalysisDashboardProps) => {
-  const { isHuman, confidenceScore, metrics, anomalies, referenceComparison, aiTextDetection } = result;
+  const { 
+    isHuman, 
+    confidenceScore, 
+    riskLevel, 
+    metrics, 
+    suspiciousActivities, 
+    referenceComparison, 
+    aiTextDetection, 
+    summary,
+    timeline 
+  } = result;
   
-  // Format confidence score as percentage
   const confidencePercentage = Math.round(confidenceScore * 100);
   
-  // Determine result status class
-  const getStatusClass = () => {
-    if (isHuman) {
-      return confidencePercentage > 80 
-        ? 'bg-green-100 border-green-500 text-green-700' 
-        : 'bg-yellow-100 border-yellow-500 text-yellow-700';
-    }
-    return 'bg-red-100 border-red-500 text-red-700';
-  };
-  
-  // Generate human-readable analysis results
-  const getAnalysisResult = () => {
-    if (isHuman) {
-      if (confidencePercentage > 80) {
-        return 'High confidence that this is authentic human typing behavior.';
-      } else if (confidencePercentage > 65) {
-        return 'This appears to be human typing, with a good degree of confidence.';
-      } else {
-        return 'Likely human typing, but with some unusual patterns.';
-      }
-    } else {
-      if (confidencePercentage < 30) {
-        return 'This typing behavior is highly inconsistent with human patterns.';
-      } else {
-        return 'This typing behavior appears to be non-human or artificially generated.';
-      }
+  const getRiskLevelColor = (level: string) => {
+    switch (level) {
+      case 'low': return 'text-green-600 bg-green-100 border-green-300';
+      case 'medium': return 'text-yellow-600 bg-yellow-100 border-yellow-300';
+      case 'high': return 'text-orange-600 bg-orange-100 border-orange-300';
+      case 'critical': return 'text-red-600 bg-red-100 border-red-300';
+      default: return 'text-gray-600 bg-gray-100 border-gray-300';
     }
   };
 
-  // Format percentage for display
-  const formatPercentage = (value: number) => {
-    return `${Math.round(value * 100)}%`;
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return (
+          <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        );
+      case 'high':
+        return (
+          <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+        );
+      case 'medium':
+        return (
+          <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+        );
+    }
   };
-  
+
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+  };
+
   return (
-    <div className="analysis-dashboard p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6">Analysis Results</h2>
-      
-      {/* Overall result */}
-      <div className={`overall-result p-4 rounded-lg border-l-4 mb-6 ${getStatusClass()}`}>
-        <div className="flex items-center justify-between">
+    <div className="analysis-dashboard max-w-6xl mx-auto p-6 space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Analysis Results</h2>
+        <p className="text-gray-600 dark:text-gray-300">Comprehensive behavioral and content analysis</p>
+      </div>
+
+      {/* Overall Assessment */}
+      <div className={`p-6 rounded-lg border-l-4 ${getRiskLevelColor(riskLevel)}`}>
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold">
-              {isHuman ? 'Human Typing Detected' : 'Non-Human Behavior Detected'}
+            <h3 className="text-xl font-semibold mb-2">
+              {isHuman ? '✓ Authentic Work Detected' : '⚠ Suspicious Activity Detected'}
             </h3>
-            <p>{getAnalysisResult()}</p>
+            <p className="text-lg">{summary.overallAssessment}</p>
+            <div className="mt-2 flex items-center space-x-4 text-sm">
+              <span>Risk Level: <strong className="capitalize">{riskLevel}</strong></span>
+              <span>Total Flags: <strong>{summary.totalFlags}</strong></span>
+              <span>High Risk Flags: <strong>{summary.highRiskFlags}</strong></span>
+            </div>
           </div>
-          <div className="confidence-meter text-center">
-            <div className="relative w-24 h-24">
-              <svg viewBox="0 0 36 36" className="w-full h-full">
-                <path
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="#e6e6e6"
-                  strokeWidth="3"
-                  strokeDasharray="100, 100"
-                />
-                <path
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke={isHuman ? "#4CAF50" : "#F44336"}
-                  strokeWidth="3"
-                  strokeDasharray={`${confidencePercentage}, 100`}
-                />
-                <text x="18" y="20.5" className="text-lg font-semibold" textAnchor="middle" fill={isHuman ? "#4CAF50" : "#F44336"}>
-                  {confidencePercentage}%
-                </text>
-              </svg>
+          <div className="text-center">
+            <div className={`text-4xl font-bold ${isHuman ? 'text-green-600' : 'text-red-600'}`}>
+              {confidencePercentage}%
             </div>
             <div className="text-sm">Confidence</div>
           </div>
         </div>
       </div>
-      
-      {/* AI Text Detection Results (if available) */}
-      {aiTextDetection && (
-        <div className="ai-detection mb-6">
-          <h3 className="text-lg font-semibold mb-3">AI Content Detection</h3>
-          <div className={`p-4 rounded-lg ${aiTextDetection.isAiGenerated ? 'bg-red-50' : 'bg-green-50'}`}>
+
+      {/* Scores Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+          <h4 className="text-lg font-semibold mb-4">Behavior Analysis</h4>
+          <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <div>
-                <p className={`text-lg font-bold ${aiTextDetection.isAiGenerated ? 'text-red-700' : 'text-green-700'}`}>
-                  {aiTextDetection.isAiGenerated 
-                    ? 'AI-Generated Content Detected' 
-                    : 'Likely Human-Written Content'}
-                </p>
-                <p className="text-sm mt-1">
-                  {aiTextDetection.isAiGenerated
-                    ? 'The text content appears to have characteristics of AI-generated text.'
-                    : 'The text content appears to be written by a human.'}
-                </p>
-                <p className="text-xs mt-2">
-                  Analysis provided by: {aiTextDetection.provider}
-                </p>
-              </div>
-              <div className="ai-score-meter text-center ml-4">
-                <div className="relative w-20 h-20">
-                  <svg viewBox="0 0 36 36" className="w-full h-full">
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#e6e6e6"
-                      strokeWidth="3"
-                      strokeDasharray="100, 100"
-                    />
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke={aiTextDetection.isAiGenerated ? "#F44336" : "#4CAF50"}
-                      strokeWidth="3"
-                      strokeDasharray={`${Math.round(aiTextDetection.score * 100)}, 100`}
-                    />
-                    <text x="18" y="20.5" className="text-sm font-semibold" textAnchor="middle" fill={aiTextDetection.isAiGenerated ? "#F44336" : "#4CAF50"}>
-                      {Math.round(aiTextDetection.score * 100)}%
-                    </text>
-                  </svg>
-                </div>
-                <div className="text-xs">AI Detection</div>
-              </div>
+              <span>Behavior Score</span>
+              <span className="font-semibold">{Math.round(summary.behaviorScore * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div 
+                className={`h-3 rounded-full ${summary.behaviorScore > 0.7 ? 'bg-green-500' : summary.behaviorScore > 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                style={{ width: `${summary.behaviorScore * 100}%` }}
+              />
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Reference Comparison (if available) */}
-      {referenceComparison && (
-        <div className="reference-comparison mb-6">
-          <h3 className="text-lg font-semibold mb-3">Comparison to Your Calibration</h3>
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="mb-3 text-sm text-blue-800">
-              This analysis compares your current typing behavior with the calibration sample you provided earlier.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="similarity-metric">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm">Overall Similarity</span>
-                  <span className="text-sm font-semibold">{formatPercentage(referenceComparison.overall)}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${referenceComparison.overall * 100}%` }}></div>
-                </div>
-              </div>
-              
-              <div className="similarity-metric">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm">Typing Speed</span>
-                  <span className="text-sm font-semibold">{formatPercentage(referenceComparison.typingSpeed)}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${referenceComparison.typingSpeed * 100}%` }}></div>
-                </div>
-              </div>
-              
-              <div className="similarity-metric">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm">Typing Rhythm</span>
-                  <span className="text-sm font-semibold">{formatPercentage(referenceComparison.rhythm)}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${referenceComparison.rhythm * 100}%` }}></div>
-                </div>
-              </div>
-              
-              <div className="similarity-metric">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm">Correction Behavior</span>
-                  <span className="text-sm font-semibold">{formatPercentage(referenceComparison.deletionRate)}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${referenceComparison.deletionRate * 100}%` }}></div>
-                </div>
-              </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+          <h4 className="text-lg font-semibold mb-4">Content Analysis</h4>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span>Content Score</span>
+              <span className="font-semibold">{Math.round(summary.contentScore * 100)}%</span>
             </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Metrics */}
-      <div className="metrics mb-6">
-        <h3 className="text-lg font-semibold mb-4">Typing Metrics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="metric p-3 bg-gray-50 rounded">
-            <div className="text-sm text-gray-500">Typing Speed</div>
-            <div className="text-xl font-semibold">{Math.round(metrics.averageTypingSpeed)} CPM</div>
-            <div className="text-xs text-gray-400">Characters per minute</div>
-          </div>
-          
-          <div className="metric p-3 bg-gray-50 rounded">
-            <div className="text-sm text-gray-500">Rhythm Consistency</div>
-            <div className="text-xl font-semibold">{(metrics.rhythmConsistency * 100).toFixed(1)}%</div>
-            <div className="text-xs text-gray-400">
-              {metrics.rhythmConsistency > 0.85 ? 'Very consistent (unusual)' : 
-               metrics.rhythmConsistency > 0.6 ? 'Consistent' : 
-               metrics.rhythmConsistency > 0.3 ? 'Moderately variable (natural)' : 
-               'Highly variable'}
-            </div>
-          </div>
-          
-          <div className="metric p-3 bg-gray-50 rounded">
-            <div className="text-sm text-gray-500">Deletion Rate</div>
-            <div className="text-xl font-semibold">{(metrics.deletionRate * 100).toFixed(1)}%</div>
-            <div className="text-xs text-gray-400">
-              {metrics.deletionRate === 0 ? 'No corrections (unusual)' :
-               metrics.deletionRate < 0.01 ? 'Very few corrections' :
-               metrics.deletionRate < 0.05 ? 'Few corrections' :
-               metrics.deletionRate < 0.2 ? 'Normal correction rate' :
-               'High correction rate'}
-            </div>
-          </div>
-          
-          <div className="metric p-3 bg-gray-50 rounded">
-            <div className="text-sm text-gray-500">Pause Frequency</div>
-            <div className="text-xl font-semibold">{(metrics.pauseFrequency * 100).toFixed(1)}%</div>
-            <div className="text-xs text-gray-400">
-              {metrics.pauseFrequency === 0 ? 'No pauses (unusual)' :
-               metrics.pauseFrequency < 0.01 ? 'Very few pauses' :
-               metrics.pauseFrequency < 0.05 ? 'Few pauses' :
-               metrics.pauseFrequency < 0.2 ? 'Normal pause frequency' :
-               'High pause frequency'}
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div 
+                className={`h-3 rounded-full ${summary.contentScore > 0.7 ? 'bg-green-500' : summary.contentScore > 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                style={{ width: `${summary.contentScore * 100}%` }}
+              />
             </div>
           </div>
         </div>
       </div>
-      
-      {/* Anomalies */}
-      {anomalies.length > 0 && (
-        <div className="anomalies mb-6">
-          <h3 className="text-lg font-semibold mb-2">Detected Anomalies</h3>
-          <div className="bg-red-50 p-4 rounded-lg">
-            <ul className="list-disc pl-5">
-              {anomalies.map((anomaly, index) => (
-                <li key={index} className="text-red-600 mb-1">{anomaly}</li>
-              ))}
-            </ul>
+
+      {/* AI Detection Results */}
+      {aiTextDetection && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+          <h3 className="text-xl font-semibold mb-4">AI Content Detection</h3>
+          {aiTextDetection.error ? (
+            <div className="bg-red-50 dark:bg-red-900 p-4 rounded-lg border border-red-200 dark:border-red-700">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <h4 className="font-semibold text-red-800 dark:text-red-200">AI Detection Error</h4>
+                  <p className="text-red-700 dark:text-red-300 text-sm">{aiTextDetection.error}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className={`p-4 rounded-lg ${aiTextDetection.isAiGenerated ? 'bg-red-50 dark:bg-red-900' : 'bg-green-50 dark:bg-green-900'}`}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className={`text-lg font-semibold ${aiTextDetection.isAiGenerated ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+                    {aiTextDetection.isAiGenerated ? 'AI-Generated Content Detected' : 'Human-Written Content'}
+                  </h4>
+                  <p className={`text-sm ${aiTextDetection.isAiGenerated ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                    AI Detection Score: {Math.round(aiTextDetection.score * 100)}%
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    Analysis by {aiTextDetection.provider}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Suspicious Activities */}
+      {suspiciousActivities.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+          <h3 className="text-xl font-semibold mb-4">Suspicious Activities ({suspiciousActivities.length})</h3>
+          <div className="space-y-4">
+            {suspiciousActivities.map((activity, index) => (
+              <div key={index} className={`p-4 rounded-lg border-l-4 ${
+                activity.severity === 'critical' ? 'border-red-500 bg-red-50 dark:bg-red-900' :
+                activity.severity === 'high' ? 'border-orange-500 bg-orange-50 dark:bg-orange-900' :
+                activity.severity === 'medium' ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900' :
+                'border-blue-500 bg-blue-50 dark:bg-blue-900'
+              }`}>
+                <div className="flex items-start space-x-3">
+                  {getSeverityIcon(activity.severity)}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-semibold">{activity.description}</h4>
+                      <span className={`px-2 py-1 text-xs rounded uppercase font-semibold ${
+                        activity.severity === 'critical' ? 'bg-red-200 text-red-800' :
+                        activity.severity === 'high' ? 'bg-orange-200 text-orange-800' :
+                        activity.severity === 'medium' ? 'bg-yellow-200 text-yellow-800' :
+                        'bg-blue-200 text-blue-800'
+                      }`}>
+                        {activity.severity}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm space-y-1">
+                      {activity.evidence.map((evidence, evidenceIndex) => (
+                        <p key={evidenceIndex} className="text-gray-600 dark:text-gray-400">• {evidence}</p>
+                      ))}
+                    </div>
+                    {activity.timestamp && (
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                        Time: {formatTime(activity.timestamp)}
+                      </p>
+                    )}
+                    {activity.affectedContent && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-gray-500 cursor-pointer">View affected content</summary>
+                        <p className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 font-mono">
+                          {activity.affectedContent.substring(0, 200)}...
+                        </p>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
-      
-      {/* Explanation */}
-      <div className="explanation mt-6 p-4 bg-blue-50 rounded text-sm text-blue-800">
-        <h4 className="font-semibold mb-2">How This Analysis Works</h4>
-        <p className="mb-2">
-          This analysis examines your typing patterns including speed, rhythm, pauses, and editing behavior. 
-          Human typing typically shows natural variations in rhythm, occasional errors and corrections, 
-          and pauses for thinking.
-        </p>
-        <p>
-          {referenceComparison 
-            ? "The analysis primarily compares your current typing behavior with your calibration sample, accounting for natural variations in how you type at different times." 
-            : "Without a calibration sample, the analysis uses general human typing patterns for comparison. For better results, complete a calibration first."}
-            {aiTextDetection && " Additionally, the text content is analyzed for patterns characteristic of AI-generated text."}
-        </p>
+
+      {/* Reference Comparison */}
+      {referenceComparison && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+          <h3 className="text-xl font-semibold mb-4">Calibration Comparison</h3>
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              Overall similarity to calibration: <strong>{Math.round(referenceComparison.overall * 100)}%</strong>
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Statistical significance: <strong>{Math.round(referenceComparison.statisticalSignificance * 100)}%</strong>
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(referenceComparison.breakdown).map(([metric, data]) => (
+              <div key={metric} className="p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium capitalize">{metric.replace(/([A-Z])/g, ' $1')}</span>
+                  <span className="text-sm font-semibold">{Math.round(data.similarity * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${data.similarity > 0.7 ? 'bg-green-500' : data.similarity > 0.5 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    style={{ width: `${data.similarity * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{data.explanation}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Detailed Metrics */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+        <h3 className="text-xl font-semibold mb-4">Detailed Typing Metrics</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="metric-card p-4 bg-gray-50 dark:bg-gray-700 rounded">
+            <h4 className="font-semibold text-sm mb-2">Typing Speed</h4>
+            <p className="text-2xl font-bold">{Math.round(metrics.averageTypingSpeed)} CPM</p>
+            <p className="text-xs text-gray-500">{Math.round(metrics.wordsPerMinute)} WPM</p>
+          </div>
+          
+          <div className="metric-card p-4 bg-gray-50 dark:bg-gray-700 rounded">
+            <h4 className="font-semibold text-sm mb-2">Rhythm Consistency</h4>
+            <p className="text-2xl font-bold">{Math.round(metrics.rhythmConsistency * 100)}%</p>
+            <p className="text-xs text-gray-500">Keystroke timing</p>
+          </div>
+          
+          <div className="metric-card p-4 bg-gray-50 dark:bg-gray-700 rounded">
+            <h4 className="font-semibold text-sm mb-2">Correction Rate</h4>
+            <p className="text-2xl font-bold">{Math.round(metrics.deletionRate * 100)}%</p>
+            <p className="text-xs text-gray-500">Deletions per keystroke</p>
+          </div>
+          
+          <div className="metric-card p-4 bg-gray-50 dark:bg-gray-700 rounded">
+            <h4 className="font-semibold text-sm mb-2">Pause Frequency</h4>
+            <p className="text-2xl font-bold">{Math.round(metrics.pauseFrequency * 100)}%</p>
+            <p className="text-xs text-gray-500">Actions with pauses</p>
+          </div>
+          
+          <div className="metric-card p-4 bg-gray-50 dark:bg-gray-700 rounded">
+            <h4 className="font-semibold text-sm mb-2">Typing Burstiness</h4>
+            <p className="text-2xl font-bold">{Math.round(metrics.burstiness * 100)}%</p>
+            <p className="text-xs text-gray-500">Burst vs steady typing</p>
+          </div>
+          
+          <div className="metric-card p-4 bg-gray-50 dark:bg-gray-700 rounded">
+            <h4 className="font-semibold text-sm mb-2">Consistency Score</h4>
+            <p className="text-2xl font-bold">{Math.round(metrics.consistencyScore * 100)}%</p>
+            <p className="text-xs text-gray-500">Overall pattern stability</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+        <h3 className="text-xl font-semibold mb-4">Session Timeline</h3>
+        <div className="space-y-2">
+          {timeline.map((event, index) => (
+            <div key={index} className="flex items-center space-x-3 py-2">
+              <div className={`w-3 h-3 rounded-full ${
+                event.risk === 'high' ? 'bg-red-500' :
+                event.risk === 'medium' ? 'bg-yellow-500' :
+                'bg-green-500'
+              }`} />
+              <span className="text-sm text-gray-500">{formatTime(event.timestamp)}</span>
+              <span className="text-sm">{event.event}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
