@@ -420,13 +420,26 @@ function detectPasteEvents(actions: EditorAction[]): EditorAction[] {
 // AI Text Detection using external API
 async function detectAiGeneratedText(text: string): Promise<{ isAiGenerated: boolean, score: number, provider: string }> {
   try {
+    const apiKey = process.env.ZEROGPT_API_KEY;
+    
+    if (!apiKey) {
+      console.warn('ZEROGPT_API_KEY not found in environment variables, using mock response');
+      // Do a simple heuristic check for now
+      const mockScore = Math.random() * 0.3 + (text.length > 200 ? 0.4 : 0.1); // Add some randomness
+      return {
+        isAiGenerated: mockScore > 0.6,
+        score: mockScore,
+        provider: 'MockDetection (API key not configured)'
+      };
+    }
+
     // API keys should be stored as environment variables, not hardcoded
     // Here we're using ZeroGPT API as requested, but would use proper authentication in production
     const response = await fetch('https://api.zerogpt.com/api/detect', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // In a real setup, we'd use: 'Authorization': `Bearer ${process.env.ZEROGPT_API_KEY}`
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ text })
     });
@@ -440,7 +453,7 @@ async function detectAiGeneratedText(text: string): Promise<{ isAiGenerated: boo
       return {
         isAiGenerated: mockScore > 0.6,
         score: mockScore,
-        provider: 'MockDetection'
+        provider: 'MockDetection (API call failed)'
       };
     }
 

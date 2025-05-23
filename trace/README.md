@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TRACE - Academic Integrity Monitoring System
 
-## Getting Started
+TRACE is a comprehensive academic integrity monitoring system that tracks student typing behavior to detect AI-generated content and ensure authentic work submission.
 
-First, run the development server:
+## Features
+
+- **Real-time Behavior Monitoring**: Tracks typing patterns, pauses, corrections, and cursor movements
+- **AI Content Detection**: Integrates with GPTzero to identify AI-generated text
+- **Student Dashboard**: Students can view assignments and complete monitored work sessions
+- **Professor Dashboard**: Professors can review submissions and analyze work authenticity
+- **Calibration System**: Establishes baseline typing patterns for each student
+- **Detailed Analytics**: Comprehensive reports on typing behavior and authenticity metrics
+
+## Setup Instructions
+
+### 1. Installation
 
 ```bash
+# Install dependencies
+npm install
+
+# Run the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Usage
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Homepage**: Navigate to `http://localhost:3000` to see the main landing page
+2. **Student Portal**: Click "Enter Student Dashboard" to access student assignments
+3. **Professor Portal**: Click "Enter Professor Dashboard" to review submissions
+4. **Practice Mode**: Use "Try Editor Demo" to test the monitoring system
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## User Workflows
 
-## Learn More
+### Student Workflow
+1. Access the Student Dashboard at `/student`
+2. View available assignments
+3. Click "Start Assignment" to begin monitored work
+4. Complete calibration process (establishes typing baseline)
+5. Write assignment in the monitored editor
+6. Submit work for analysis
 
-To learn more about Next.js, take a look at the following resources:
+### Professor Workflow
+1. Access the Professor Dashboard at `/professor`
+2. Review student submissions with authenticity scores
+3. Filter by suspicious/verified submissions
+4. View detailed analysis including:
+   - Typing speed and rhythm patterns
+   - AI detection results
+   - Behavioral anomalies
+   - Full submission content
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Technical Details
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Monitoring Capabilities
+- **Keystroke Dynamics**: Timing between keystrokes, dwell times
+- **Pause Analysis**: Detection and measurement of typing pauses
+- **Editing Patterns**: Deletions, corrections, cursor movements
+- **Paste Detection**: Identification of copy-paste operations
+- **AI Text Analysis**: Content analysis using GPTzero API
 
-## Deploy on Vercel
+### Analysis Metrics
+- Average typing speed (CPM)
+- Pause frequency and patterns
+- Deletion/correction rates
+- Rhythm consistency
+- Cursor movement frequency
+- Confidence scores for authenticity
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Project Structure
+```
+src/
+├── app/
+│   ├── api/analyze/          # Analysis API endpoint
+│   ├── student/              # Student dashboard
+│   ├── professor/            # Professor dashboard
+│   ├── editor/               # Monitored editor
+│   └── page.tsx              # Homepage
+├── components/
+│   ├── Editor.tsx            # Rich text editor with monitoring
+│   ├── Calibration.tsx       # Typing calibration component
+│   └── AnalysisDashboard.tsx # Analysis results display
+└── store/
+    └── editorStore.ts        # State management for actions
+```
+
+### API Endpoints
+- `POST /api/analyze` - Analyze typing behavior and detect AI content
+- `POST /api/actions` - Save typing actions to server
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For technical issues or questions about academic integrity monitoring, please contact the development team.

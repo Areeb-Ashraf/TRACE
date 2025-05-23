@@ -73,9 +73,14 @@ const Calibration = ({ onComplete, userId }: CalibrationProps) => {
   useEffect(() => {
     if (!editor) return;
 
+    let lastKeyDownTime: Record<string, number> = {};
+    let lastKeyUpTime: number = Date.now();
+
     const handleKeyDown = (event: KeyboardEvent) => {
       const currentTime = Date.now();
       const timeSinceLastKey = currentTime - lastKeyTime.current;
+      const flightTime = currentTime - lastKeyUpTime;
+      lastKeyTime.current = currentTime;
 
       // Check if there was a significant pause before this keystroke
       if (timeSinceLastKey > pauseThreshold) {
@@ -86,18 +91,28 @@ const Calibration = ({ onComplete, userId }: CalibrationProps) => {
         });
       }
 
-      // Log the keystroke
+      // Log the keydown event for dwell/flight time
       addAction({
-        type: 'insert',
+        type: 'keydown',
         content: event.key,
         timestamp: currentTime,
+        flightTime,
       });
-      
-      lastKeyTime.current = currentTime;
+      lastKeyDownTime[event.key] = currentTime;
     };
 
-    const handleKeyUp = () => {
-      lastKeyTime.current = Date.now();
+    const handleKeyUp = (event: KeyboardEvent) => {
+      const currentTime = Date.now();
+      const dwellTime = lastKeyDownTime[event.key]
+        ? currentTime - lastKeyDownTime[event.key]
+        : undefined;
+      addAction({
+        type: 'keyup',
+        content: event.key,
+        timestamp: currentTime,
+        dwellTime,
+      });
+      lastKeyUpTime = currentTime;
     };
 
     // Track delete actions
