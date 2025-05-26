@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Editor from '@/components/Editor';
 import Calibration from '@/components/Calibration';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
+import UserDropdown from '@/components/UserDropdown';
 import { useEditorStore } from '@/store/editorStore';
 
 export default function EditorPage() {
@@ -84,12 +85,15 @@ export default function EditorPage() {
             </div>
             <nav className="flex space-x-4">
               {isAssignmentMode ? (
-                <Link
-                  href="/student"
-                  className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-                >
-                  Back to Dashboard
-                </Link>
+                <>
+                  <Link
+                    href="/student"
+                    className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  >
+                    Back to Dashboard
+                  </Link>
+                  <UserDropdown />
+                </>
               ) : (
                 <>
                   <Link
@@ -104,6 +108,7 @@ export default function EditorPage() {
                   >
                     Home
                   </Link>
+                  <UserDropdown />
                 </>
               )}
             </nav>

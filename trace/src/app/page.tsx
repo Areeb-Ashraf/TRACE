@@ -1,6 +1,36 @@
+"use client"
+
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (session) {
+      // Redirect authenticated users to their respective dashboards
+      if (session.user.role === "PROFESSOR") {
+        router.push("/professor");
+      } else {
+        router.push("/student");
+      }
+    }
+  }, [session, router]);
+
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-8">
       <main className="max-w-4xl w-full">
@@ -32,6 +62,29 @@ export default function Home() {
           </div>
         </div>
 
+        {!session && (
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg border-2 border-indigo-200 dark:border-indigo-700 mb-8">
+            <div className="text-center">
+              <h3 className="text-2xl font-bold mb-4">Get Started</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">Sign in to access your dashboard or create a new account</p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link
+                  href="/auth/signin"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/auth/signup"
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                >
+                  Create Account
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           {/* Student Portal */}
           <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg border-2 border-blue-200 dark:border-blue-700">
@@ -45,10 +98,10 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300 mb-6">Access your assignments and complete monitored work sessions</p>
             </div>
             <Link
-              href="/student"
+              href={session ? "/student" : "/auth/signin"}
               className="w-full inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors text-center"
             >
-              Enter Student Dashboard
+              {session ? "Enter Student Dashboard" : "Sign In as Student"}
             </Link>
           </div>
 
@@ -64,10 +117,10 @@ export default function Home() {
               <p className="text-gray-600 dark:text-gray-300 mb-6">Review student submissions and analyze work authenticity</p>
             </div>
             <Link
-              href="/professor"
+              href={session ? "/professor" : "/auth/signin"}
               className="w-full inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors text-center"
             >
-              Enter Professor Dashboard
+              {session ? "Enter Professor Dashboard" : "Sign In as Professor"}
             </Link>
           </div>
         </div>

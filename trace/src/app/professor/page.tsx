@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import AnalysisDashboard from '@/components/AnalysisDashboard';
+import UserDropdown from '@/components/UserDropdown';
 
 interface StudentSubmission {
   id: string;
@@ -174,6 +176,7 @@ export default function ProfessorDashboard() {
               >
                 Home
               </Link>
+              <UserDropdown />
             </nav>
           </div>
         </div>

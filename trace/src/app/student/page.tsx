@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import UserDropdown from '@/components/UserDropdown';
 
 interface Assignment {
   id: string;
@@ -88,6 +89,7 @@ export default function StudentDashboard() {
               >
                 Home
               </Link>
+              <UserDropdown />
             </nav>
           </div>
         </div>
