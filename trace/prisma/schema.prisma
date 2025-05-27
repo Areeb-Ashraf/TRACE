@@ -55,10 +55,12 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  accounts      Account[]
-  sessions      Session[]
-  studySessions StudySession[]
-  references    Reference[]
+  accounts         Account[]
+  sessions         Session[]
+  studySessions    StudySession[]
+  references       Reference[]
+  createdAssignments Assignment[] @relation("ProfessorAssignments")
+  submissions      Submission[]
 
   @@map("users")
 }
@@ -77,6 +79,63 @@ enum UserRole {
   STUDENT
   PROFESSOR
   ADMIN
+}
+
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+model Assignment {
+  id               String           @id @default(cuid())
+  professorId      String           @map("professor_id")
+  title            String
+  description      String           @db.Text
+  instructions     String?          @db.Text
+  dueDate          DateTime         @map("due_date")
+  estimatedTime    Int?             @map("estimated_time") // in minutes
+  maxWords         Int?             @map("max_words")
+  minWords         Int?             @map("min_words")
+  status           AssignmentStatus @default(DRAFT)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  professor    User         @relation("ProfessorAssignments", fields: [professorId], references: [id], onDelete: Cascade)
+  submissions  Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id               String           @id @default(cuid())
+  assignmentId     String           @map("assignment_id")
+  studentId        String           @map("student_id")
+  status           SubmissionStatus @default(PENDING)
+  textContent      String?          @db.Text
+  wordCount        Int?             @map("word_count")
+  timeSpent        Int?             @map("time_spent") // in minutes
+  sessionS3Key     String?          @map("session_s3_key") // Typing behavior data
+  referenceS3Key   String?          @map("reference_s3_key") // Calibration data
+  analysisS3Key    String?          @map("analysis_s3_key") // Analysis results
+  submittedAt      DateTime?        @map("submitted_at")
+  grade            Float?
+  feedback         String?          @db.Text
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@map("submissions")
 }
 
 model StudySession {

@@ -3,14 +3,36 @@ import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
 
+interface Assignment {
+  id: string;
+  title: string;
+  description: string;
+  instructions?: string;
+  dueDate: string;
+  estimatedTime?: number;
+  maxWords?: number;
+  minWords?: number;
+}
+
 interface EditorProps {
   onAnalyze?: (result: any) => void;
   referenceActions?: any[];
   userId?: string;
   assignmentMode?: boolean;
+  onSave?: (textContent: string, wordCount: number, timeSpent: number) => void;
+  initialContent?: string;
+  assignment?: Assignment | null;
 }
 
-const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }: EditorProps) => {
+const Editor = ({ 
+  onAnalyze, 
+  referenceActions, 
+  userId, 
+  assignmentMode = false,
+  onSave,
+  initialContent,
+  assignment
+}: EditorProps) => {
   const { actions, addAction, clearActions } = useEditorStore();
   const lastKeyTime = useRef<number>(Date.now());
   const lastCursorPosition = useRef<{ from: number; to: number } | null>(null);
@@ -21,23 +43,34 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
   const [wordCount, setWordCount] = useState(0);
   const [timeSpent, setTimeSpent] = useState(0);
   const startTime = useRef<number>(Date.now());
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const getInitialContent = () => {
+    if (initialContent) {
+      return initialContent;
+    }
+    if (assignmentMode && assignment) {
+      return `<p>Begin writing your assignment: "${assignment.title}"</p><p></p>`;
+    }
+    return '<p>Start typing here to see behavior tracking in action...</p>';
+  };
 
   const editor = useEditor({
     extensions: [
       StarterKit,
     ],
-    content: assignmentMode 
-      ? '<p>Begin writing your assignment here...</p>' 
-      : '<p>Start typing here to see behavior tracking in action...</p>',
+    content: getInitialContent(),
     onUpdate: ({ editor }) => {
       const currentTime = Date.now();
       const text = editor.getText();
       
       // Update word count
-      setWordCount(text.trim().split(/\s+/).filter(word => word.length > 0).length);
+      const words = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+      setWordCount(words);
       
       // Update time spent
-      setTimeSpent(Math.floor((currentTime - startTime.current) / 1000 / 60)); // in minutes
+      const timeInMinutes = Math.floor((currentTime - startTime.current) / 1000 / 60);
+      setTimeSpent(timeInMinutes);
       
       // Log the content change with timestamp
       addAction({
@@ -45,6 +78,19 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
         content: text,
         timestamp: currentTime,
       });
+
+      // Auto-save for assignments
+      if (assignmentMode && onSave) {
+        // Clear existing timeout
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+        }
+        
+        // Set new timeout for auto-save (save after 3 seconds of inactivity)
+        saveTimeoutRef.current = setTimeout(() => {
+          onSave(text, words, timeInMinutes);
+        }, 3000);
+      }
     },
     onSelectionUpdate: ({ editor }) => {
       const selection = editor.state.selection;
@@ -66,6 +112,26 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
       }
     },
   });
+
+  // Load initial content when component mounts or initialContent changes
+  useEffect(() => {
+    if (editor && initialContent) {
+      editor.commands.setContent(initialContent);
+      // Update word count for initial content
+      const text = editor.getText();
+      const words = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+      setWordCount(words);
+    }
+  }, [editor, initialContent]);
+
+  // Cleanup auto-save timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!editor) return;
@@ -144,27 +210,31 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
       setIsSaving(true);
       setSaveStatus('Saving your typing data...');
 
-      // Save actions to the server
-      const response = await fetch('/api/actions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          actions,
-          userId,
-          sessionId: sessionId || Date.now().toString(),
-          isReference: false
-        }),
-      });
+      const textContent = editor ? editor.getText() : '';
 
-      if (!response.ok) {
-        throw new Error('Failed to save actions');
+      // Save actions to the server (for non-assignment mode)
+      if (!assignmentMode) {
+        const response = await fetch('/api/actions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            actions,
+            userId,
+            sessionId: sessionId || Date.now().toString(),
+            isReference: false
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save actions');
+        }
+
+        const data = await response.json();
+        setSessionId(data.sessionId);
+        setSaveStatus('Data saved successfully!');
       }
-
-      const data = await response.json();
-      setSessionId(data.sessionId);
-      setSaveStatus('Data saved successfully!');
 
       // If reference actions exist, perform analysis
       if (referenceActions && referenceActions.length > 0 && onAnalyze) {
@@ -178,7 +248,9 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
           body: JSON.stringify({
             actions,
             referenceActions,
-            textContent: editor ? editor.getText() : undefined // Include the actual text content for AI detection
+            textContent,
+            wordCount,
+            timeSpent
           }),
         });
 
@@ -187,6 +259,11 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
         }
 
         const analysisResult = await analysisResponse.json();
+        // Add text content and stats to analysis result
+        analysisResult.textContent = textContent;
+        analysisResult.wordCount = wordCount;
+        analysisResult.timeSpent = timeSpent;
+        
         onAnalyze(analysisResult);
         setSaveStatus('Analysis complete!');
       }
@@ -214,9 +291,46 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
     startTime.current = Date.now();
   };
 
+  const getWordCountStatus = () => {
+    if (!assignment || (!assignment.minWords && !assignment.maxWords)) {
+      return null;
+    }
+
+    const { minWords, maxWords } = assignment;
+    let status = '';
+    let color = 'text-gray-500';
+
+    if (minWords && maxWords) {
+      if (wordCount < minWords) {
+        status = `${minWords - wordCount} words needed`;
+        color = 'text-yellow-600';
+      } else if (wordCount > maxWords) {
+        status = `${wordCount - maxWords} words over limit`;
+        color = 'text-red-600';
+      } else {
+        status = 'Word count within range';
+        color = 'text-green-600';
+      }
+    } else if (minWords && wordCount < minWords) {
+      status = `${minWords - wordCount} words needed`;
+      color = 'text-yellow-600';
+    } else if (maxWords && wordCount > maxWords) {
+      status = `${wordCount - maxWords} words over limit`;
+      color = 'text-red-600';
+    }
+
+    return { status, color };
+  };
+
+  const isOverdue = (dueDate: string) => {
+    return new Date() > new Date(dueDate);
+  };
+
   if (!editor) {
     return null;
   }
+
+  const wordCountStatus = getWordCountStatus();
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
@@ -231,6 +345,15 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
           }
         </p>
         
+        {/* Assignment warnings */}
+        {assignmentMode && assignment && isOverdue(assignment.dueDate) && (
+          <div className="mt-3 p-2 bg-red-50 dark:bg-red-900 rounded-lg">
+            <p className="text-red-800 dark:text-red-200 text-sm">
+              ⚠️ This assignment is overdue. You may still work on it, but it will be marked as late.
+            </p>
+          </div>
+        )}
+        
         {/* Stats Bar */}
         <div className="flex items-center space-x-6 mt-3 text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center space-x-1">
@@ -238,12 +361,22 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
             <span>Words: {wordCount}</span>
+            {wordCountStatus && (
+              <span className={`ml-2 ${wordCountStatus.color}`}>
+                ({wordCountStatus.status})
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <span>Time: {timeSpent}m</span>
+            {assignment && assignment.estimatedTime && (
+              <span className={`ml-2 ${timeSpent > assignment.estimatedTime ? 'text-yellow-600' : 'text-gray-500'}`}>
+                (Est: {assignment.estimatedTime}m)
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,6 +384,12 @@ const Editor = ({ onAnalyze, referenceActions, userId, assignmentMode = false }:
             </svg>
             <span>Actions: {actions.length}</span>
           </div>
+          {assignmentMode && (
+            <div className="flex items-center space-x-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-600">Auto-saving</span>
+            </div>
+          )}
         </div>
       </div>
       

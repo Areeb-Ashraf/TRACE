@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import Editor from '@/components/Editor';
 import Calibration from '@/components/Calibration';
@@ -9,34 +10,108 @@ import AnalysisDashboard from '@/components/AnalysisDashboard';
 import UserDropdown from '@/components/UserDropdown';
 import { useEditorStore } from '@/store/editorStore';
 
+interface Assignment {
+  id: string;
+  title: string;
+  description: string;
+  instructions?: string;
+  dueDate: string;
+  estimatedTime?: number;
+  maxWords?: number;
+  minWords?: number;
+}
+
+interface Submission {
+  id: string;
+  status: string;
+  textContent?: string;
+  wordCount?: number;
+  timeSpent?: number;
+  assignment: Assignment;
+}
+
 export default function EditorPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const { actions, clearActions } = useEditorStore();
   const [showActions, setShowActions] = useState(false);
   const [calibrationComplete, setCalibrationComplete] = useState(false);
-  const [referenceActionsList, setReferenceActionsList] = useState<any[][]>([]); // Multiple calibration samples
+  const [referenceActionsList, setReferenceActionsList] = useState<any[][]>([]);
   const [userId] = useState<string>(`user_${Date.now().toString()}`);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'editor' | 'analysis' | 'calibration'>('calibration');
   const [calibrationMetrics, setCalibrationMetrics] = useState<any[]>([]);
+  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [submission, setSubmission] = useState<Submission | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   
   // Assignment context from URL parameters
   const searchParams = useSearchParams();
-  const assignmentId = searchParams.get('assignment');
-  const assignmentTitle = searchParams.get('title');
-  const isAssignmentMode = !!assignmentId;
+  const assignmentId = searchParams.get('assignmentId');
+  const submissionId = searchParams.get('submissionId');
+  const isAssignmentMode = !!assignmentId && !!submissionId;
+
+  useEffect(() => {
+    if (status === "loading") return;
+    
+    if (!session) {
+      router.push("/auth/signin");
+      return;
+    }
+
+    if (isAssignmentMode) {
+      fetchAssignmentAndSubmission();
+    } else {
+      setLoading(false);
+    }
+  }, [session, status, assignmentId, submissionId, router]);
+
+  const fetchAssignmentAndSubmission = async () => {
+    try {
+      setLoading(true);
+      
+      if (submissionId) {
+        const response = await fetch(`/api/submissions/${submissionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSubmission(data.submission);
+          setAssignment(data.submission.assignment);
+          
+          // If submission is already submitted, redirect back
+          if (data.submission.status === 'SUBMITTED') {
+            setError('This assignment has already been submitted.');
+            setTimeout(() => router.push('/student'), 3000);
+            return;
+          }
+        } else {
+          setError('Failed to fetch submission details');
+        }
+      }
+    } catch (error) {
+      setError('Error loading assignment');
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle completion of calibration
   const handleCalibrationComplete = (actions: any[]) => {
     setReferenceActionsList(prev => [...prev, actions]);
     setCalibrationComplete(true);
-    // Optionally, fetch metrics for this calibration
+    
+    // Fetch metrics for this calibration
     fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actions }),
     })
       .then(res => res.json())
-      .then(data => setCalibrationMetrics(prev => [...prev, data.metrics]));
+      .then(data => setCalibrationMetrics(prev => [...prev, data.metrics]))
+      .catch(console.error);
       
     // If in assignment mode, automatically switch to editor after calibration
     if (isAssignmentMode) {
@@ -50,16 +125,67 @@ export default function EditorPage() {
     setActiveTab('analysis');
   };
 
+  // Save progress periodically
+  const saveProgress = async (textContent: string, wordCount: number, timeSpent: number) => {
+    if (!isAssignmentMode || !submissionId || saving) return;
+    
+    try {
+      setSaving(true);
+      await fetch(`/api/submissions/${submissionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          textContent,
+          wordCount,
+          timeSpent,
+          sessionData: actions,
+          referenceData: referenceActionsList.flat()
+        }),
+      });
+    } catch (error) {
+      console.error('Error saving progress:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Handle assignment submission
   const handleSubmitAssignment = async () => {
-    if (!analysisResult || !isAssignmentMode) return;
+    if (!analysisResult || !isAssignmentMode || !submissionId || submitting) return;
     
-    // Here you would typically save the submission to a database
-    // For now, we'll simulate the submission
-    alert('Assignment submitted successfully! Your work has been analyzed for academic integrity.');
-    
-    // Redirect back to student dashboard
-    window.location.href = '/student';
+    try {
+      setSubmitting(true);
+      
+      const response = await fetch(`/api/submissions/${submissionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          textContent: analysisResult.textContent,
+          wordCount: analysisResult.wordCount,
+          timeSpent: analysisResult.timeSpent,
+          sessionData: actions,
+          referenceData: referenceActionsList.flat(),
+          isSubmitting: true
+        }),
+      });
+
+      if (response.ok) {
+        alert('Assignment submitted successfully! Your work has been analyzed for academic integrity.');
+        router.push('/student');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to submit assignment');
+      }
+    } catch (error) {
+      setError('Error submitting assignment');
+      console.error('Error:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Compute average calibration metrics
@@ -70,6 +196,41 @@ export default function EditorPage() {
         return acc;
       }, {} as Record<string, number>)
     : null;
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const isOverdue = (dueDate: string) => {
+    return new Date() > new Date(dueDate);
+  };
+
+  if (status === "loading" || loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-xl mb-4">{error}</div>
+          <Link href="/student" className="text-blue-600 hover:underline">
+            Return to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -118,17 +279,44 @@ export default function EditorPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Assignment Header */}
-        {isAssignmentMode && (
+        {isAssignmentMode && assignment && (
           <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {assignmentTitle || 'Assignment'}
+              {assignment.title}
             </h1>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              {assignment.description}
+            </p>
+            {assignment.instructions && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">Instructions:</h3>
+                <p className="text-blue-800 dark:text-blue-200 text-sm">{assignment.instructions}</p>
+              </div>
+            )}
             <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-              <span>Assignment ID: {assignmentId}</span>
+              <span>Due: {formatDate(assignment.dueDate)}</span>
+              {assignment.estimatedTime && (
+                <>
+                  <span>•</span>
+                  <span>Estimated: {assignment.estimatedTime} minutes</span>
+                </>
+              )}
+              {assignment.minWords && assignment.maxWords && (
+                <>
+                  <span>•</span>
+                  <span>Length: {assignment.minWords} - {assignment.maxWords} words</span>
+                </>
+              )}
               <span>•</span>
-              <span>Status: In Progress</span>
-              <span>•</span>
-              <span className="text-blue-600 dark:text-blue-400">Monitoring Active</span>
+              <span className={`${isOverdue(assignment.dueDate) ? 'text-red-600' : 'text-blue-600'} dark:text-blue-400`}>
+                {isOverdue(assignment.dueDate) ? 'OVERDUE' : 'Monitoring Active'}
+              </span>
+              {saving && (
+                <>
+                  <span>•</span>
+                  <span className="text-green-600">Saving...</span>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -165,7 +353,7 @@ export default function EditorPage() {
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'analysis' ? 'bg-blue-100 text-blue-600' : analysisResult ? 'bg-gray-100 text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
                 3
               </div>
-              <span className="ml-2 font-medium">Analysis</span>
+              <span className="ml-2 font-medium">{isAssignmentMode ? 'Submit' : 'Analysis'}</span>
             </div>
           </div>
         </div>
@@ -191,7 +379,7 @@ export default function EditorPage() {
               onClick={() => setActiveTab('analysis')}
               disabled={!analysisResult}
             >
-              Analysis Results
+              {isAssignmentMode ? 'Review & Submit' : 'Analysis Results'}
             </button>
           </div>
         </div>
@@ -228,10 +416,13 @@ export default function EditorPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <Editor 
-                referenceActions={referenceActionsList.flat()} // Use all calibration samples
+                referenceActions={referenceActionsList.flat()}
                 onAnalyze={handleAnalysisResults}
                 userId={userId}
                 assignmentMode={isAssignmentMode}
+                onSave={saveProgress}
+                initialContent={submission?.textContent}
+                assignment={assignment}
               />
             </div>
             <div className="lg:col-span-1">
@@ -252,6 +443,25 @@ export default function EditorPage() {
                     <span>Calibration Samples:</span>
                     <span className="font-medium">{referenceActionsList.length}</span>
                   </div>
+                  {isAssignmentMode && assignment && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Word Limit:</span>
+                        <span className="font-medium">
+                          {assignment.minWords && assignment.maxWords 
+                            ? `${assignment.minWords} - ${assignment.maxWords}`
+                            : 'No limit'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Time Remaining:</span>
+                        <span className={`font-medium ${isOverdue(assignment.dueDate) ? 'text-red-600' : ''}`}>
+                          {isOverdue(assignment.dueDate) ? 'OVERDUE' : formatDate(assignment.dueDate)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
                 
                 <div className="mt-6 space-y-2">
@@ -302,18 +512,34 @@ export default function EditorPage() {
 
         {activeTab === 'analysis' && analysisResult && (
           <div className="space-y-6">
-            <AnalysisDashboard result={analysisResult} />
+            <AnalysisDashboard 
+              result={analysisResult} 
+              textContent={analysisResult.textContent}
+              submissionInfo={isAssignmentMode && assignment ? {
+                assignmentTitle: assignment.title,
+                wordCount: analysisResult.wordCount,
+                timeSpent: analysisResult.timeSpent
+              } : undefined}
+            />
             {isAssignmentMode && (
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
                 <h3 className="text-lg font-semibold mb-4">Submit Assignment</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
                   Your work has been analyzed for academic integrity. Review the results above and submit when ready.
                 </p>
+                {assignment && isOverdue(assignment.dueDate) && (
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900 rounded-lg">
+                    <p className="text-red-800 dark:text-red-200 text-sm">
+                      ⚠️ This assignment is overdue. You may still submit, but it will be marked as late.
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={handleSubmitAssignment}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                  disabled={submitting}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Submit Assignment
+                  {submitting ? 'Submitting...' : 'Submit Assignment'}
                 </button>
               </div>
             )}
