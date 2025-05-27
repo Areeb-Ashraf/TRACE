@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -9,6 +9,11 @@ import Calibration from '@/components/Calibration';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
 import UserDropdown from '@/components/UserDropdown';
 import { useEditorStore } from '@/store/editorStore';
+import CalibrationEditor from '@/components/CalibrationEditor';
+import WritingEditor from '@/components/WritingEditor';
+import StudentReview from '@/components/StudentReview';
+import { ToastManager } from '@/components/Toast';
+import { useToast } from '@/hooks/useToast';
 
 interface Assignment {
   id: string;
@@ -34,6 +39,7 @@ export default function EditorPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { actions, clearActions } = useEditorStore();
+  const { toasts, success, error: showError, removeToast } = useToast();
   const [showActions, setShowActions] = useState(false);
   const [calibrationComplete, setCalibrationComplete] = useState(false);
   const [referenceActionsList, setReferenceActionsList] = useState<any[][]>([]);
@@ -47,6 +53,8 @@ export default function EditorPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submissionData, setSubmissionData] = useState<any>(null);
   
   // Assignment context from URL parameters
   const searchParams = useSearchParams();
@@ -174,14 +182,30 @@ export default function EditorPage() {
       });
 
       if (response.ok) {
-        alert('Assignment submitted successfully! Your work has been analyzed for academic integrity.');
-        router.push('/student');
+        const data = await response.json();
+        success('Assignment submitted successfully! Your work has been analyzed for academic integrity.');
+        
+        // For students, show the review view instead of redirecting
+        if (session?.user.role === 'STUDENT') {
+          setIsSubmitted(true);
+          setSubmissionData({
+            textContent: analysisResult.textContent,
+            submissionInfo: {
+              assignmentTitle: assignment?.title || 'Unknown Assignment',
+              wordCount: analysisResult.wordCount || 0,
+              timeSpent: analysisResult.timeSpent || 0,
+              submittedAt: new Date().toISOString()
+            }
+          });
+        } else {
+          router.push('/student');
+        }
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to submit assignment');
+        showError(errorData.error || 'Failed to submit assignment');
       }
     } catch (error) {
-      setError('Error submitting assignment');
+      showError('Error submitting assignment');
       console.error('Error:', error);
     } finally {
       setSubmitting(false);
@@ -234,318 +258,354 @@ export default function EditorPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-blue-600">TRACE</Link>
-              <span className="ml-4 text-gray-600 dark:text-gray-300">
-                {isAssignmentMode ? 'Assignment Editor' : 'Practice Editor'}
-              </span>
-            </div>
-            <nav className="flex space-x-4">
-              {isAssignmentMode ? (
-                <>
+      {/* Toast Manager */}
+      <ToastManager toasts={toasts} removeToast={removeToast} />
+      
+      {/* If submitted and student, show review instead of normal interface */}
+      {isSubmitted && submissionData && session?.user.role === 'STUDENT' ? (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+          <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center py-6">
+                <div className="flex items-center">
+                  <Link href="/" className="text-2xl font-bold text-blue-600">TRACE</Link>
+                  <span className="ml-4 text-gray-600 dark:text-gray-300">Assignment Submitted</span>
+                </div>
+                <nav className="flex space-x-4">
                   <Link
                     href="/student"
-                    className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
                   >
                     Back to Dashboard
                   </Link>
                   <UserDropdown />
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/student"
-                    className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-                  >
-                    Student Portal
-                  </Link>
-                  <Link
-                    href="/"
-                    className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-                  >
-                    Home
-                  </Link>
-                  <UserDropdown />
-                </>
-              )}
-            </nav>
-          </div>
+                </nav>
+              </div>
+            </div>
+          </header>
+          <main className="py-8">
+            <StudentReview 
+              textContent={submissionData.textContent}
+              submissionInfo={submissionData.submissionInfo}
+            />
+          </main>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Assignment Header */}
-        {isAssignmentMode && assignment && (
-          <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {assignment.title}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              {assignment.description}
-            </p>
-            {assignment.instructions && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">Instructions:</h3>
-                <p className="text-blue-800 dark:text-blue-200 text-sm">{assignment.instructions}</p>
+      ) : (
+        <>
+          {/* Header */}
+          <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center py-6">
+                <div className="flex items-center">
+                  <Link href="/" className="text-2xl font-bold text-blue-600">TRACE</Link>
+                  <span className="ml-4 text-gray-600 dark:text-gray-300">
+                    {isAssignmentMode ? 'Assignment Editor' : 'Practice Editor'}
+                  </span>
+                </div>
+                <nav className="flex space-x-4">
+                  {isAssignmentMode ? (
+                    <>
+                      <Link
+                        href="/student"
+                        className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                      >
+                        Back to Dashboard
+                      </Link>
+                      <UserDropdown />
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/student"
+                        className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                      >
+                        Student Portal
+                      </Link>
+                      <Link
+                        href="/"
+                        className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                      >
+                        Home
+                      </Link>
+                      <UserDropdown />
+                    </>
+                  )}
+                </nav>
               </div>
-            )}
-            <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-              <span>Due: {formatDate(assignment.dueDate)}</span>
-              {assignment.estimatedTime && (
-                <>
-                  <span>•</span>
-                  <span>Estimated: {assignment.estimatedTime} minutes</span>
-                </>
-              )}
-              {assignment.minWords && assignment.maxWords && (
-                <>
-                  <span>•</span>
-                  <span>Length: {assignment.minWords} - {assignment.maxWords} words</span>
-                </>
-              )}
-              <span>•</span>
-              <span className={`${isOverdue(assignment.dueDate) ? 'text-red-600' : 'text-blue-600'} dark:text-blue-400`}>
-                {isOverdue(assignment.dueDate) ? 'OVERDUE' : 'Monitoring Active'}
-              </span>
-              {saving && (
-                <>
-                  <span>•</span>
-                  <span className="text-green-600">Saving...</span>
-                </>
-              )}
             </div>
-          </div>
-        )}
+          </header>
 
-        {!isAssignmentMode && (
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              TRACE - Practice Editor
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Practice with the behavior tracking system before starting assignments.
-            </p>
-          </div>
-        )}
-
-        {/* Workflow Steps Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-center space-x-4">
-            <div className={`flex items-center ${activeTab === 'calibration' ? 'text-blue-600' : referenceActionsList.length > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'calibration' ? 'bg-blue-100 text-blue-600' : referenceActionsList.length > 0 ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                1
-              </div>
-              <span className="ml-2 font-medium">Calibration</span>
-            </div>
-            <div className={`h-px w-16 ${referenceActionsList.length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-            <div className={`flex items-center ${activeTab === 'editor' ? 'text-blue-600' : referenceActionsList.length > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'editor' ? 'bg-blue-100 text-blue-600' : referenceActionsList.length > 0 ? 'bg-gray-100 text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
-                2
-              </div>
-              <span className="ml-2 font-medium">Writing</span>
-            </div>
-            <div className={`h-px w-16 ${analysisResult ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-            <div className={`flex items-center ${activeTab === 'analysis' ? 'text-blue-600' : analysisResult ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'analysis' ? 'bg-blue-100 text-blue-600' : analysisResult ? 'bg-gray-100 text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
-                3
-              </div>
-              <span className="ml-2 font-medium">{isAssignmentMode ? 'Submit' : 'Analysis'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mb-6">
-          <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'calibration' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
-              onClick={() => setActiveTab('calibration')}
-            >
-              Calibration
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'editor' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'} ${referenceActionsList.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={() => setActiveTab('editor')}
-              disabled={referenceActionsList.length === 0}
-            >
-              {isAssignmentMode ? 'Write Assignment' : 'Editor'}
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'analysis' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'} ${!analysisResult ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={() => setActiveTab('analysis')}
-              disabled={!analysisResult}
-            >
-              {isAssignmentMode ? 'Review & Submit' : 'Analysis Results'}
-            </button>
-          </div>
-        </div>
-
-        {/* Content Based on Active Tab */}
-        {activeTab === 'calibration' && (
-          <div className="space-y-6">
-            <Calibration onComplete={handleCalibrationComplete} userId={userId} />
-            {referenceActionsList.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                <h3 className="text-lg font-semibold mb-4">Calibration Samples ({referenceActionsList.length})</h3>
-                <button
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 mb-4"
-                  onClick={() => setCalibrationComplete(false)}
-                >
-                  Add Another Calibration Sample
-                </button>
-                {avgCalibration && (
-                  <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
-                    <h4 className="font-semibold mb-2">Average Calibration Metrics</h4>
-                    <ul className="text-sm space-y-1">
-                      {Object.entries(avgCalibration).map(([key, value]) => (
-                        <li key={key}><b>{key}:</b> {typeof value === 'number' ? value.toFixed(2) : JSON.stringify(value)}</li>
-                      ))}
-                    </ul>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Assignment Header */}
+            {isAssignmentMode && assignment && (
+              <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  {assignment.title}
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  {assignment.description}
+                </p>
+                {assignment.instructions && (
+                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                    <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">Instructions:</h3>
+                    <p className="text-blue-800 dark:text-blue-200 text-sm">{assignment.instructions}</p>
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'editor' && referenceActionsList.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Editor 
-                referenceActions={referenceActionsList.flat()}
-                onAnalyze={handleAnalysisResults}
-                userId={userId}
-                assignmentMode={isAssignmentMode}
-                onSave={saveProgress}
-                initialContent={submission?.textContent}
-                assignment={assignment}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold">Monitoring Status</h2>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-green-600">Active</span>
-                  </div>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span>Actions Recorded:</span>
-                    <span className="font-medium">{actions.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Calibration Samples:</span>
-                    <span className="font-medium">{referenceActionsList.length}</span>
-                  </div>
-                  {isAssignmentMode && assignment && (
+                <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
+                  <span>Due: {formatDate(assignment.dueDate)}</span>
+                  {assignment.estimatedTime && (
                     <>
-                      <div className="flex justify-between">
-                        <span>Word Limit:</span>
-                        <span className="font-medium">
-                          {assignment.minWords && assignment.maxWords 
-                            ? `${assignment.minWords} - ${assignment.maxWords}`
-                            : 'No limit'
-                          }
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Time Remaining:</span>
-                        <span className={`font-medium ${isOverdue(assignment.dueDate) ? 'text-red-600' : ''}`}>
-                          {isOverdue(assignment.dueDate) ? 'OVERDUE' : formatDate(assignment.dueDate)}
-                        </span>
-                      </div>
+                      <span>•</span>
+                      <span>Estimated: {assignment.estimatedTime} minutes</span>
+                    </>
+                  )}
+                  {assignment.minWords && assignment.maxWords && (
+                    <>
+                      <span>•</span>
+                      <span>Length: {assignment.minWords} - {assignment.maxWords} words</span>
+                    </>
+                  )}
+                  <span>•</span>
+                  <span className={`${isOverdue(assignment.dueDate) ? 'text-red-600' : 'text-blue-600'} dark:text-blue-400`}>
+                    {isOverdue(assignment.dueDate) ? 'OVERDUE' : 'Monitoring Active'}
+                  </span>
+                  {saving && (
+                    <>
+                      <span>•</span>
+                      <span className="text-green-600">Saving...</span>
                     </>
                   )}
                 </div>
-                
-                <div className="mt-6 space-y-2">
-                  <button 
-                    onClick={() => setShowActions(!showActions)}
-                    className="w-full px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    {showActions ? 'Hide' : 'Show'} Action Log
-                  </button>
-                  <button 
-                    onClick={clearActions}
-                    className="w-full px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Clear Actions
-                  </button>
-                </div>
+              </div>
+            )}
 
-                {showActions && (
-                  <div className="mt-4 actions-log h-[300px] overflow-y-auto bg-gray-50 dark:bg-gray-700 p-4 rounded border">
-                    {actions.length === 0 ? (
-                      <p className="text-gray-500">No actions recorded yet. Start typing in the editor.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {actions.map((action, index) => (
-                          <li key={index} className="text-xs border-b pb-1">
-                            <span className="font-mono bg-gray-100 dark:bg-gray-600 px-1 rounded mr-2">
-                              {new Date(action.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit', fractionalSecondDigits: 3})}
-                            </span>
-                            <span className={`inline-block w-12 ${getActionColor(action.type)}`}>
-                              {action.type}
-                            </span>
-                            {action.content && <span className="ml-2">{truncate(action.content, 20)}</span>}
-                            {action.pauseDuration && (
-                              <span className="ml-2 text-yellow-600">
-                                ({(action.pauseDuration / 1000).toFixed(1)}s)
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+            {!isAssignmentMode && (
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  TRACE - Practice Editor
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Practice with the behavior tracking system before starting assignments.
+                </p>
+              </div>
+            )}
+
+            {/* Workflow Steps Indicator */}
+            <div className="mb-8">
+              <div className="flex items-center justify-center space-x-4">
+                <div className={`flex items-center ${activeTab === 'calibration' ? 'text-blue-600' : referenceActionsList.length > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'calibration' ? 'bg-blue-100 text-blue-600' : referenceActionsList.length > 0 ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                    1
+                  </div>
+                  <span className="ml-2 font-medium">Calibration</span>
+                </div>
+                <div className={`h-px w-16 ${referenceActionsList.length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <div className={`flex items-center ${activeTab === 'editor' ? 'text-blue-600' : referenceActionsList.length > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'editor' ? 'bg-blue-100 text-blue-600' : referenceActionsList.length > 0 ? 'bg-gray-100 text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
+                    2
+                  </div>
+                  <span className="ml-2 font-medium">Writing</span>
+                </div>
+                <div className={`h-px w-16 ${analysisResult ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <div className={`flex items-center ${activeTab === 'analysis' ? 'text-blue-600' : analysisResult ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeTab === 'analysis' ? 'bg-blue-100 text-blue-600' : analysisResult ? 'bg-gray-100 text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
+                    3
+                  </div>
+                  <span className="ml-2 font-medium">{isAssignmentMode ? 'Submit' : 'Analysis'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="mb-6">
+              <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
+                <button
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'calibration' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
+                  onClick={() => setActiveTab('calibration')}
+                >
+                  Calibration
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'editor' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'} ${referenceActionsList.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => setActiveTab('editor')}
+                  disabled={referenceActionsList.length === 0}
+                >
+                  {isAssignmentMode ? 'Write Assignment' : 'Editor'}
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'analysis' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'} ${!analysisResult ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => setActiveTab('analysis')}
+                  disabled={!analysisResult}
+                >
+                  {isAssignmentMode ? 'Review & Submit' : 'Analysis Results'}
+                </button>
+              </div>
+            </div>
+
+            {/* Content Based on Active Tab */}
+            {activeTab === 'calibration' && (
+              <div className="space-y-6">
+                <Calibration onComplete={handleCalibrationComplete} userId={userId} />
+                {referenceActionsList.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+                    <h3 className="text-lg font-semibold mb-4">Calibration Samples ({referenceActionsList.length})</h3>
+                    <button
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 mb-4"
+                      onClick={() => setCalibrationComplete(false)}
+                    >
+                      Add Another Calibration Sample
+                    </button>
+                    {avgCalibration && (
+                      <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+                        <h4 className="font-semibold mb-2">Average Calibration Metrics</h4>
+                        <ul className="text-sm space-y-1">
+                          {Object.entries(avgCalibration).map(([key, value]) => (
+                            <li key={key}><b>{key}:</b> {typeof value === 'number' ? value.toFixed(2) : JSON.stringify(value)}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {activeTab === 'analysis' && analysisResult && (
-          <div className="space-y-6">
-            <AnalysisDashboard 
-              result={analysisResult} 
-              textContent={analysisResult.textContent}
-              submissionInfo={isAssignmentMode && assignment ? {
-                assignmentTitle: assignment.title,
-                wordCount: analysisResult.wordCount,
-                timeSpent: analysisResult.timeSpent
-              } : undefined}
-            />
-            {isAssignmentMode && (
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-                <h3 className="text-lg font-semibold mb-4">Submit Assignment</h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Your work has been analyzed for academic integrity. Review the results above and submit when ready.
-                </p>
-                {assignment && isOverdue(assignment.dueDate) && (
-                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900 rounded-lg">
-                    <p className="text-red-800 dark:text-red-200 text-sm">
-                      ⚠️ This assignment is overdue. You may still submit, but it will be marked as late.
-                    </p>
+            {activeTab === 'editor' && referenceActionsList.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                  <Editor 
+                    referenceActions={referenceActionsList.flat()}
+                    onAnalyze={handleAnalysisResults}
+                    userId={userId}
+                    assignmentMode={isAssignmentMode}
+                    onSave={saveProgress}
+                    initialContent={submission?.textContent}
+                    assignment={assignment}
+                  />
+                </div>
+                <div className="lg:col-span-1">
+                  <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-semibold">Monitoring Status</h2>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm text-green-600">Active</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span>Actions Recorded:</span>
+                        <span className="font-medium">{actions.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Calibration Samples:</span>
+                        <span className="font-medium">{referenceActionsList.length}</span>
+                      </div>
+                      {isAssignmentMode && assignment && (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Word Limit:</span>
+                            <span className="font-medium">
+                              {assignment.minWords && assignment.maxWords 
+                                ? `${assignment.minWords} - ${assignment.maxWords}`
+                                : 'No limit'
+                              }
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Time Remaining:</span>
+                            <span className={`font-medium ${isOverdue(assignment.dueDate) ? 'text-red-600' : ''}`}>
+                              {isOverdue(assignment.dueDate) ? 'OVERDUE' : formatDate(assignment.dueDate)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="mt-6 space-y-2">
+                      <button 
+                        onClick={() => setShowActions(!showActions)}
+                        className="w-full px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >
+                        {showActions ? 'Hide' : 'Show'} Action Log
+                      </button>
+                      <button 
+                        onClick={clearActions}
+                        className="w-full px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Clear Actions
+                      </button>
+                    </div>
+
+                    {showActions && (
+                      <div className="mt-4 actions-log h-[300px] overflow-y-auto bg-gray-50 dark:bg-gray-700 p-4 rounded border">
+                        {actions.length === 0 ? (
+                          <p className="text-gray-500">No actions recorded yet. Start typing in the editor.</p>
+                        ) : (
+                          <ul className="space-y-2">
+                            {actions.map((action, index) => (
+                              <li key={index} className="text-xs border-b pb-1">
+                                <span className="font-mono bg-gray-100 dark:bg-gray-600 px-1 rounded mr-2">
+                                  {new Date(action.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit', fractionalSecondDigits: 3})}
+                                </span>
+                                <span className={`inline-block w-12 ${getActionColor(action.type)}`}>
+                                  {action.type}
+                                </span>
+                                {action.content && <span className="ml-2">{truncate(action.content, 20)}</span>}
+                                {action.pauseDuration && (
+                                  <span className="ml-2 text-yellow-600">
+                                    ({(action.pauseDuration / 1000).toFixed(1)}s)
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-                <button
-                  onClick={handleSubmitAssignment}
-                  disabled={submitting}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? 'Submitting...' : 'Submit Assignment'}
-                </button>
+                </div>
               </div>
             )}
-          </div>
-        )}
-      </main>
+
+            {activeTab === 'analysis' && analysisResult && (
+              <div className="space-y-6">
+                <AnalysisDashboard 
+                  result={analysisResult} 
+                  textContent={analysisResult.textContent}
+                  submissionInfo={isAssignmentMode && assignment ? {
+                    assignmentTitle: assignment.title,
+                    wordCount: analysisResult.wordCount,
+                    timeSpent: analysisResult.timeSpent
+                  } : undefined}
+                />
+                {isAssignmentMode && (
+                  <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+                    <h3 className="text-lg font-semibold mb-4">Submit Assignment</h3>
+                    <p className="text-gray-600 dark:text-gray-300 mb-4">
+                      Your work has been analyzed for academic integrity. Review the results above and submit when ready.
+                    </p>
+                    {assignment && isOverdue(assignment.dueDate) && (
+                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-900 rounded-lg">
+                        <p className="text-red-800 dark:text-red-200 text-sm">
+                          ⚠️ This assignment is overdue. You may still submit, but it will be marked as late.
+                        </p>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleSubmitAssignment}
+                      disabled={submitting}
+                      className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? 'Submitting...' : 'Submit Assignment'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+        </>
+      )}
     </div>
   );
 }

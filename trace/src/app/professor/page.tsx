@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
+import ProfessorSubmissionView from '@/components/ProfessorSubmissionView';
 import UserDropdown from '@/components/UserDropdown';
 
 interface Assignment {
@@ -204,8 +205,8 @@ export default function ProfessorDashboard() {
     );
   }
 
-  // Show analysis dashboard if a submission is selected
-  if (selectedSubmission && selectedSubmission.analysisData) {
+  // Show submission view if a submission is selected
+  if (selectedSubmission) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
@@ -214,13 +215,13 @@ export default function ProfessorDashboard() {
               <div className="flex items-center">
                 <Link href="/" className="text-2xl font-bold text-green-600">TRACE</Link>
                 <span className="ml-4 text-gray-600 dark:text-gray-300">
-                  Analysis: {selectedSubmission.submission.student.name}
+                  Submission Review: {selectedSubmission.submission.student.name}
                 </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button
                   onClick={() => setSelectedSubmission(null)}
-                  className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
                 >
                   ← Back to Dashboard
                 </button>
@@ -229,17 +230,11 @@ export default function ProfessorDashboard() {
             </div>
           </div>
         </header>
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <AnalysisDashboard 
-            result={selectedSubmission.analysisData}
-            textContent={selectedSubmission.submission.textContent}
-            submissionInfo={{
-              studentName: selectedSubmission.submission.student.name,
-              assignmentTitle: selectedSubmission.submission.assignment.title,
-              submissionDate: selectedSubmission.submission.submittedAt,
-              wordCount: selectedSubmission.submission.wordCount,
-              timeSpent: selectedSubmission.submission.timeSpent
-            }}
+        <main>
+          <ProfessorSubmissionView 
+            submission={selectedSubmission.submission}
+            analysisResult={selectedSubmission.analysisData}
+            essayContent={selectedSubmission.essayContent}
           />
         </main>
       </div>

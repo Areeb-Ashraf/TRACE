@@ -125,6 +125,7 @@ model Submission {
   sessionS3Key     String?          @map("session_s3_key") // Typing behavior data
   referenceS3Key   String?          @map("reference_s3_key") // Calibration data
   analysisS3Key    String?          @map("analysis_s3_key") // Analysis results
+  essayS3Key       String?          @map("essay_s3_key") // Essay content
   submittedAt      DateTime?        @map("submitted_at")
   grade            Float?
   feedback         String?          @db.Text

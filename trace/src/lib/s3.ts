@@ -40,6 +40,20 @@ export class S3Service {
     return key
   }
 
+  static async uploadEssayContent(submissionId: string, content: string): Promise<string> {
+    const key = `essays/${submissionId}.txt`
+    
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: content,
+      ContentType: 'text/plain',
+    })
+
+    await s3Client.send(command)
+    return key
+  }
+
   static async getSessionData(s3Key: string): Promise<any> {
     const command = new GetObjectCommand({
       Bucket: bucketName,
@@ -60,6 +74,16 @@ export class S3Service {
     const response = await s3Client.send(command)
     const data = await response.Body?.transformToString()
     return data ? JSON.parse(data) : null
+  }
+
+  static async getEssayContent(s3Key: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: s3Key,
+    })
+
+    const response = await s3Client.send(command)
+    return await response.Body?.transformToString() || ''
   }
 
   static async deleteFile(s3Key: string): Promise<void> {

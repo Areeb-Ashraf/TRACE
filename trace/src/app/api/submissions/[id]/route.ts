@@ -55,6 +55,7 @@ export async function GET(
     let sessionData = null
     let referenceData = null
     let analysisData = null
+    let essayContent = null
 
     try {
       if (submission.sessionS3Key) {
@@ -67,6 +68,10 @@ export async function GET(
         // Only professors can see analysis data
         analysisData = await S3Service.getReferenceData(submission.analysisS3Key)
       }
+      if (submission.essayS3Key && isProfessor) {
+        // Only professors can see essay content from S3
+        essayContent = await S3Service.getEssayContent(submission.essayS3Key)
+      }
     } catch (error) {
       console.error("Error fetching S3 data:", error)
     }
@@ -75,7 +80,8 @@ export async function GET(
       submission,
       sessionData: isProfessor ? sessionData : null, // Students don't see session data
       referenceData: isProfessor ? referenceData : null, // Students don't see reference data
-      analysisData
+      analysisData,
+      essayContent: isProfessor ? essayContent : null // Students don't see S3 essay content
     })
   } catch (error) {
     console.error("Get submission error:", error)
@@ -142,6 +148,17 @@ export async function PUT(
       let sessionS3Key = submission.sessionS3Key
       let referenceS3Key = submission.referenceS3Key
       let analysisS3Key = null
+      let essayS3Key = submission.essayS3Key
+
+      // Upload essay content to S3 if provided
+      if (textContent) {
+        try {
+          essayS3Key = await S3Service.uploadEssayContent(params.id, textContent)
+        } catch (error) {
+          console.error('Failed to save essay to S3:', error)
+          // Continue with update even if S3 upload fails
+        }
+      }
 
       // Upload session data to S3 if provided
       if (sessionData) {
@@ -172,7 +189,8 @@ export async function PUT(
             body: JSON.stringify({
               actions: sessionData,
               referenceActions: referenceData,
-              textContent
+              textContent,
+              submissionId: params.id
             }),
           })
 
@@ -196,7 +214,8 @@ export async function PUT(
         ...(timeSpent !== undefined && { timeSpent }),
         ...(sessionS3Key && { sessionS3Key }),
         ...(referenceS3Key && { referenceS3Key }),
-        ...(analysisS3Key && { analysisS3Key })
+        ...(analysisS3Key && { analysisS3Key }),
+        ...(essayS3Key && { essayS3Key })
       }
 
       if (isSubmitting) {

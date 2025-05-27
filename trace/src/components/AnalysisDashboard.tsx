@@ -63,6 +63,30 @@ interface AnalysisResult {
     score: number;
     provider: string;
     error?: string;
+    details?: {
+      version: string;
+      scanId: string;
+      predictedClass: 'human' | 'ai' | 'mixed';
+      confidenceCategory: 'high' | 'medium' | 'low';
+      classProbabilities: {
+        human: number;
+        ai: number;
+        mixed: number;
+      };
+      completelyGeneratedProb: number;
+      averageGeneratedProb: number;
+      sentences?: Array<{
+        sentence: string;
+        generatedProb: number;
+        perplexity: number;
+        highlightForAi: boolean;
+      }>;
+      paragraphs?: Array<{
+        startSentenceIndex: number;
+        numSentences: number;
+        completelyGeneratedProb: number;
+      }>;
+    };
   };
   summary: {
     totalFlags: number;
@@ -213,7 +237,13 @@ const AnalysisDashboard = ({ result }: AnalysisDashboardProps) => {
       {/* AI Detection Results */}
       {aiTextDetection && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-          <h3 className="text-xl font-semibold mb-4">AI Content Detection</h3>
+          <h3 className="text-xl font-semibold mb-6 flex items-center">
+            <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            AI Content Detection
+          </h3>
+          
           {aiTextDetection.error ? (
             <div className="bg-red-50 dark:bg-red-900 p-4 rounded-lg border border-red-200 dark:border-red-700">
               <div className="flex items-center">
@@ -227,20 +257,207 @@ const AnalysisDashboard = ({ result }: AnalysisDashboardProps) => {
               </div>
             </div>
           ) : (
-            <div className={`p-4 rounded-lg ${aiTextDetection.isAiGenerated ? 'bg-red-50 dark:bg-red-900' : 'bg-green-50 dark:bg-green-900'}`}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className={`text-lg font-semibold ${aiTextDetection.isAiGenerated ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
-                    {aiTextDetection.isAiGenerated ? 'AI-Generated Content Detected' : 'Human-Written Content'}
-                  </h4>
-                  <p className={`text-sm ${aiTextDetection.isAiGenerated ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                    AI Detection Score: {Math.round(aiTextDetection.score * 100)}%
-                  </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                    Analysis by {aiTextDetection.provider}
-                  </p>
+            <div className="space-y-6">
+              {/* Main Classification Result */}
+              <div className={`p-6 rounded-lg border-l-4 ${
+                aiTextDetection.isAiGenerated 
+                  ? 'bg-red-50 dark:bg-red-900 border-red-500' 
+                  : 'bg-green-50 dark:bg-green-900 border-green-500'
+              }`}>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className={`text-xl font-bold mb-2 ${
+                      aiTextDetection.isAiGenerated 
+                        ? 'text-red-700 dark:text-red-300' 
+                        : 'text-green-700 dark:text-green-300'
+                    }`}>
+                      {aiTextDetection.isAiGenerated ? '🤖 AI-Generated Content Detected' : '✍️ Human-Written Content'}
+                    </h4>
+                    <p className={`text-lg mb-2 ${
+                      aiTextDetection.isAiGenerated 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : 'text-green-600 dark:text-green-400'
+                    }`}>
+                      Overall AI Probability: <strong>{Math.round(aiTextDetection.score * 100)}%</strong>
+                    </p>
+                    {aiTextDetection.details && (
+                      <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                        <span>Classification: <strong className="capitalize">{aiTextDetection.details.predictedClass}</strong></span>
+                        <span>Confidence: <strong className="capitalize">{aiTextDetection.details.confidenceCategory}</strong></span>
+                        <span>Provider: <strong>{aiTextDetection.provider}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-4xl font-bold ${
+                      aiTextDetection.isAiGenerated ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {Math.round((1 - aiTextDetection.score) * 100)}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Human-like</div>
+                  </div>
                 </div>
               </div>
+
+              {/* Detailed Probabilities */}
+              {aiTextDetection.details?.classProbabilities && (
+                <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg">
+                  <h4 className="text-lg font-semibold mb-4">Probability Breakdown</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {Math.round(aiTextDetection.details.classProbabilities.human * 100)}%
+                      </div>
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Human</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div 
+                          className="bg-green-500 h-2 rounded-full"
+                          style={{ width: `${aiTextDetection.details.classProbabilities.human * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-red-600">
+                        {Math.round(aiTextDetection.details.classProbabilities.ai * 100)}%
+                      </div>
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">AI Generated</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div 
+                          className="bg-red-500 h-2 rounded-full"
+                          style={{ width: `${aiTextDetection.details.classProbabilities.ai * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg text-center">
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {Math.round(aiTextDetection.details.classProbabilities.mixed * 100)}%
+                      </div>
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Mixed Content</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div 
+                          className="bg-yellow-500 h-2 rounded-full"
+                          style={{ width: `${aiTextDetection.details.classProbabilities.mixed * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Metrics */}
+              {aiTextDetection.details && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                    <h5 className="font-semibold mb-3">Detection Metrics</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Completely Generated</span>
+                        <span className="font-semibold">{Math.round(aiTextDetection.details.completelyGeneratedProb * 100)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Average Generated</span>
+                        <span className="font-semibold">{Math.round(aiTextDetection.details.averageGeneratedProb * 100)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                    <h5 className="font-semibold mb-3">Analysis Details</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Model Version</span>
+                        <span className="font-semibold text-xs">{aiTextDetection.details.version}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Scan ID</span>
+                        <span className="font-semibold text-xs">{aiTextDetection.details.scanId.slice(-8)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sentence-Level Analysis */}
+              {aiTextDetection.details?.sentences && aiTextDetection.details.sentences.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg">
+                  <h4 className="text-lg font-semibold mb-4">Sentence-Level Analysis</h4>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {aiTextDetection.details.sentences.map((sentence, index) => (
+                      <div 
+                        key={index} 
+                        className={`p-3 rounded-lg border-l-4 ${
+                          sentence.highlightForAi 
+                            ? 'border-red-400 bg-red-50 dark:bg-red-900' 
+                            : sentence.generatedProb > 0.7
+                            ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900'
+                            : 'border-green-400 bg-green-50 dark:bg-green-900'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-sm font-medium">
+                            Sentence {index + 1}
+                            {sentence.highlightForAi && (
+                              <span className="ml-2 px-2 py-1 text-xs bg-red-200 text-red-800 rounded">
+                                Likely AI
+                              </span>
+                            )}
+                          </span>
+                          <div className="text-right text-sm">
+                            <div className="font-semibold">
+                              {Math.round(sentence.generatedProb * 100)}% AI
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              Perplexity: {sentence.perplexity.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                          "{sentence.sentence}"
+                        </p>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              sentence.generatedProb > 0.7 ? 'bg-red-500' : 
+                              sentence.generatedProb > 0.4 ? 'bg-yellow-500' : 'bg-green-500'
+                            }`}
+                            style={{ width: `${sentence.generatedProb * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Paragraph Analysis */}
+              {aiTextDetection.details?.paragraphs && aiTextDetection.details.paragraphs.length > 1 && (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg">
+                  <h4 className="text-lg font-semibold mb-4">Paragraph Analysis</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {aiTextDetection.details.paragraphs.map((paragraph, index) => (
+                      <div key={index} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium">Paragraph {index + 1}</span>
+                          <span className="text-sm font-semibold">
+                            {Math.round(paragraph.completelyGeneratedProb * 100)}% AI
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                          {paragraph.numSentences} sentences (starting at sentence {paragraph.startSentenceIndex + 1})
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              paragraph.completelyGeneratedProb > 0.7 ? 'bg-red-500' : 
+                              paragraph.completelyGeneratedProb > 0.4 ? 'bg-yellow-500' : 'bg-green-500'
+                            }`}
+                            style={{ width: `${paragraph.completelyGeneratedProb * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

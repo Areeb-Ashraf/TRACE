@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { S3Service } from '@/lib/s3';
 
 interface EditorAction {
   type: string;
@@ -83,6 +84,31 @@ interface AnalysisResult {
     score: number;
     provider: string;
     error?: string;
+    // Enhanced GPTZero data
+    details?: {
+      version: string;
+      scanId: string;
+      predictedClass: 'human' | 'ai' | 'mixed';
+      confidenceCategory: 'high' | 'medium' | 'low';
+      classProbabilities: {
+        human: number;
+        ai: number;
+        mixed: number;
+      };
+      completelyGeneratedProb: number;
+      averageGeneratedProb: number;
+      sentences?: Array<{
+        sentence: string;
+        generatedProb: number;
+        perplexity: number;
+        highlightForAi: boolean;
+      }>;
+      paragraphs?: Array<{
+        startSentenceIndex: number;
+        numSentences: number;
+        completelyGeneratedProb: number;
+      }>;
+    };
   };
   summary: {
     totalFlags: number;
@@ -100,7 +126,7 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const { actions, referenceActions, textContent } = await request.json();
+    const { actions, referenceActions, textContent, submissionId } = await request.json();
     
     if (!actions || actions.length === 0) {
       return NextResponse.json(
@@ -109,10 +135,30 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Save essay content to S3 if provided and submissionId exists
+    let essayS3Key = null;
+    if (textContent && submissionId) {
+      try {
+        essayS3Key = await S3Service.uploadEssayContent(
+          submissionId,
+          textContent
+        );
+        console.log('Essay content saved to S3:', essayS3Key);
+      } catch (error) {
+        console.error('Failed to save essay to S3:', error);
+        // Continue with analysis even if S3 upload fails
+      }
+    }
+    
     // Analyze typing behavior
     const result = await analyzeTypingBehavior(actions, referenceActions, textContent);
     
-    return NextResponse.json(result);
+    // Add essay S3 key to the result for future reference
+    return NextResponse.json({
+      ...result,
+      essayS3Key,
+      textContent // Keep textContent for immediate use
+    });
   } catch (error) {
     console.error('Error analyzing data:', error);
     return NextResponse.json(
@@ -165,8 +211,8 @@ async function analyzeTypingBehavior(
       aiTextDetection = {
         isAiGenerated: false,
         score: 0,
-        provider: 'GPTzero',
-        error: 'AI detection service unavailable. Manual review recommended.'
+        provider: 'GPTZero (Error)',
+        error: 'GPTZero API error. Manual review recommended.'
       };
     }
   }
@@ -673,31 +719,210 @@ function createSummaryAssessment(suspiciousActivities: SuspiciousActivity[], beh
   };
 }
 
-// AI Text Detection with proper error handling
-async function detectAiGeneratedText(text: string): Promise<{ isAiGenerated: boolean, score: number, provider: string }> {
-  const apiKey = process.env.ZEROGPT_API_KEY;
+// AI Text Detection using GPTZero API
+async function detectAiGeneratedText(text: string): Promise<{ 
+  isAiGenerated: boolean, 
+  score: number, 
+  provider: string,
+  details?: {
+    version: string;
+    scanId: string;
+    predictedClass: 'human' | 'ai' | 'mixed';
+    confidenceCategory: 'high' | 'medium' | 'low';
+    classProbabilities: {
+      human: number;
+      ai: number;
+      mixed: number;
+    };
+    completelyGeneratedProb: number;
+    averageGeneratedProb: number;
+    sentences?: Array<{
+      sentence: string;
+      generatedProb: number;
+      perplexity: number;
+      highlightForAi: boolean;
+    }>;
+    paragraphs?: Array<{
+      startSentenceIndex: number;
+      numSentences: number;
+      completelyGeneratedProb: number;
+    }>;
+  }
+}> {
+  const apiKey = process.env.GPTZERO_API_KEY;
   
   if (!apiKey) {
-    throw new Error('GPTzero API key not configured. Please set ZEROGPT_API_KEY in environment variables.');
+    console.log('GPTZero API key not configured');
+    return getTemporaryFallback(text);
   }
 
-  const response = await fetch('https://api.zerogpt.com/api/detect', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ text })
-  });
+  console.log('Starting GPTZero API call for text length:', text.length);
 
-  if (!response.ok) {
-    throw new Error(`GPTzero API error: ${response.status} ${response.statusText}`);
+  try {
+    console.log('Trying GPTZero API...');
+    const response = await fetch('https://api.gptzero.me/v2/predict/text', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({ 
+        document: text,
+        version: '2025-05-14-multilingual'
+      })
+    });
+
+    console.log('GPTZero response status:', response.status, response.statusText);
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('GPTZero response data:', JSON.stringify(data, null, 2));
+      
+      // Parse GPTZero response format
+      const document = data.documents?.[0];
+      const classification = document?.class_probabilities;
+      
+      if (classification && document) {
+        // GPTZero returns probabilities for 'human', 'ai', and 'mixed'
+        const aiProbability = classification.ai || 0;
+        const mixedProbability = classification.mixed || 0;
+        
+        // Consider both AI and mixed content as potentially AI-generated
+        const totalAiScore = aiProbability + (mixedProbability * 0.5);
+        
+        // Parse sentences data
+        const sentences = document.sentences?.map((sentence: any) => ({
+          sentence: sentence.sentence || '',
+          generatedProb: sentence.generated_prob || 0,
+          perplexity: sentence.perplexity || 0,
+          highlightForAi: sentence.highlight_sentence_for_ai || false
+        }));
+
+        // Parse paragraphs data
+        const paragraphs = document.paragraphs?.map((paragraph: any) => ({
+          startSentenceIndex: paragraph.start_sentence_index || 0,
+          numSentences: paragraph.num_sentences || 0,
+          completelyGeneratedProb: paragraph.completely_generated_prob || 0
+        }));
+        
+        console.log('GPTZero detection successful - AI Score:', totalAiScore);
+        return {
+          isAiGenerated: totalAiScore > 0.6,
+          score: totalAiScore,
+          provider: 'GPTZero',
+          details: {
+            version: data.version || 'unknown',
+            scanId: data.scanId || 'unknown',
+            predictedClass: document.predicted_class || 'mixed',
+            confidenceCategory: document.confidence_category || 'medium',
+            classProbabilities: {
+              human: classification.human || 0,
+              ai: classification.ai || 0,
+              mixed: classification.mixed || 0
+            },
+            completelyGeneratedProb: document.completely_generated_prob || 0,
+            averageGeneratedProb: document.average_generated_prob || 0,
+            sentences,
+            paragraphs
+          }
+        };
+      } else {
+        console.log('GPTZero returned unexpected response format:', data);
+        return getTemporaryFallback(text);
+      }
+    } else {
+      const errorText = await response.text();
+      console.log('GPTZero error response:', errorText);
+      
+      // Check for specific error types
+      if (response.status === 401) {
+        console.log('AUTHENTICATION ERROR: Invalid GPTZero API key');
+      } else if (response.status === 429) {
+        console.log('RATE LIMIT ERROR: GPTZero API rate limit exceeded');
+      } else if (response.status === 402) {
+        console.log('PAYMENT ERROR: GPTZero API payment required or quota exceeded');
+      }
+      
+      return getTemporaryFallback(text);
+    }
+  } catch (error) {
+    console.log('GPTZero API error:', error);
+    return getTemporaryFallback(text);
   }
+}
 
-  const data = await response.json();
+// Temporary fallback function for AI detection
+function getTemporaryFallback(text: string): { 
+  isAiGenerated: boolean, 
+  score: number, 
+  provider: string,
+  details?: undefined
+} {
+  // Basic heuristic-based detection as a temporary fallback
+  console.log('Using temporary AI detection fallback');
+  
+  // Simple patterns that might indicate AI-generated text
+  const aiIndicators = [
+    /as an ai/i,
+    /i don't have the ability/i,
+    /i cannot/i,
+    /i'm an ai/i,
+    /as a language model/i,
+    /i don't have personal/i,
+    /i'm not able to/i
+  ];
+  
+  const suspiciousPatterns = [
+    /furthermore/i,
+    /moreover/i,
+    /in conclusion/i,
+    /it's worth noting/i,
+    /it's important to/i
+  ];
+  
+  let score = 0;
+  const words = text.split(/\s+/).length;
+  
+  // Check for obvious AI indicators
+  for (const pattern of aiIndicators) {
+    if (pattern.test(text)) {
+      score += 0.3;
+    }
+  }
+  
+  // Check for suspicious patterns
+  let suspiciousCount = 0;
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(text)) {
+      suspiciousCount++;
+    }
+  }
+  
+  // Add score based on suspicious patterns density
+  if (words > 0) {
+    score += (suspiciousCount / words) * 2;
+  }
+  
+  // Very uniform sentence length might indicate AI
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  if (sentences.length > 3) {
+    const avgLength = sentences.reduce((sum, s) => sum + s.length, 0) / sentences.length;
+    const variance = sentences.reduce((sum, s) => sum + Math.pow(s.length - avgLength, 2), 0) / sentences.length;
+    const coefficient = Math.sqrt(variance) / avgLength;
+    
+    // Low coefficient of variation might indicate AI
+    if (coefficient < 0.3) {
+      score += 0.2;
+    }
+  }
+  
+  // Cap the score
+  score = Math.min(score, 1);
+  
   return {
-    isAiGenerated: data.isAiGenerated || data.score > 0.6,
-    score: data.score || 0,
-    provider: 'GPTzero'
+    isAiGenerated: score > 0.6,
+    score: Math.round(score * 100) / 100,
+    provider: 'Fallback Heuristic (GPTZero unavailable)'
   };
 } 
