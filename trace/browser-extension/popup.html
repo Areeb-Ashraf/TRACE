@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      margin: 0;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      margin-right: 12px;
+    }
+    
+    .title {
+      font-weight: 600;
+      color: #111827;
+    }
+    
+    .subtitle {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    
+    .status {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .status.active {
+      background-color: #dcfce7;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+    
+    .status.inactive {
+      background-color: #f3f4f6;
+      border: 1px solid #d1d5db;
+      color: #374151;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status.active .status-dot {
+      background-color: #22c55e;
+    }
+    
+    .status.inactive .status-dot {
+      background-color: #9ca3af;
+    }
+    
+    .info-section {
+      margin-bottom: 16px;
+    }
+    
+    .info-title {
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    
+    .info-text {
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    
+    .activity-count {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background-color: #f9fafb;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    
+    .activity-label {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    
+    .activity-value {
+      font-weight: 600;
+      color: #111827;
+    }
+    
+    .footer {
+      text-align: center;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+    
+    .footer-text {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">T</div>
+    <div>
+      <div class="title">TRACE Monitor</div>
+      <div class="subtitle">Academic Integrity</div>
+    </div>
+  </div>
+  
+  <div id="status" class="status inactive">
+    <div class="status-dot"></div>
+    <span id="status-text">Monitoring Inactive</span>
+  </div>
+  
+  <div class="activity-count">
+    <span class="activity-label">Activities Detected:</span>
+    <span id="activity-count" class="activity-value">0</span>
+  </div>
+  
+  <div class="info-section">
+    <div class="info-title">What We Monitor</div>
+    <div class="info-text">
+      • Tab switches during assessments<br>
+      • Visits to AI tools (ChatGPT, Claude, etc.)<br>
+      • Suspicious search queries<br>
+      • New tab creation
+    </div>
+  </div>
+  
+  <div class="info-section">
+    <div class="info-title">Privacy</div>
+    <div class="info-text">
+      Monitoring only occurs during active TRACE assessments. No data is collected outside of assessment periods.
+    </div>
+  </div>
+  
+  <div class="footer">
+    <div class="footer-text">Extension automatically activates during assessments</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html> 

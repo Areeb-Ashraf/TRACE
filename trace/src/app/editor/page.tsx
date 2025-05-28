@@ -8,9 +8,9 @@ import Editor from '@/components/Editor';
 import Calibration from '@/components/Calibration';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
 import UserDropdown from '@/components/UserDropdown';
+import ScreenTracker from '@/components/ScreenTracker';
 import { useEditorStore } from '@/store/editorStore';
-import CalibrationEditor from '@/components/CalibrationEditor';
-import WritingEditor from '@/components/WritingEditor';
+import { useScreenTracker } from '@/hooks/useScreenTracker';
 import StudentReview from '@/components/StudentReview';
 import { ToastManager } from '@/components/Toast';
 import { useToast } from '@/hooks/useToast';
@@ -61,6 +61,46 @@ export default function EditorPage() {
   const assignmentId = searchParams.get('assignmentId');
   const submissionId = searchParams.get('submissionId');
   const isAssignmentMode = !!assignmentId && !!submissionId;
+
+  // Screen tracking - only enable for assignment mode
+  const screenTracker = useScreenTracker(isAssignmentMode && calibrationComplete);
+
+  // Save screen tracking data periodically
+  const saveScreenTrackingData = async () => {
+    if (!isAssignmentMode || !submissionId || screenTracker.activities.length === 0) return;
+    
+    try {
+      const summary = {
+        totalTimeOutOfFocus: screenTracker.totalTimeOutOfFocus,
+        suspiciousActivityCount: screenTracker.suspiciousActivityCount,
+        aiToolDetections: screenTracker.aiToolDetections,
+        isWindowFocused: screenTracker.isWindowFocused,
+        activitiesCount: screenTracker.activities.length
+      };
+
+      await fetch('/api/screen-tracking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          submissionId,
+          activities: screenTracker.activities,
+          summary
+        }),
+      });
+    } catch (error) {
+      console.error('Error saving screen tracking data:', error);
+    }
+  };
+
+  // Auto-save screen tracking data every 30 seconds
+  useEffect(() => {
+    if (!isAssignmentMode || !calibrationComplete) return;
+
+    const interval = setInterval(saveScreenTrackingData, 30000);
+    return () => clearInterval(interval);
+  }, [isAssignmentMode, calibrationComplete, screenTracker.activities.length]);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -165,6 +205,9 @@ export default function EditorPage() {
     
     try {
       setSubmitting(true);
+      
+      // Save final screen tracking data before submission
+      await saveScreenTrackingData();
       
       const response = await fetch(`/api/submissions/${submissionId}`, {
         method: 'PUT',
@@ -483,7 +526,16 @@ export default function EditorPage() {
                     assignment={assignment}
                   />
                 </div>
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Screen Activity Tracker - Only show for assignments */}
+                  {isAssignmentMode && calibrationComplete && (
+                    <ScreenTracker 
+                      trackingState={screenTracker}
+                      showDetails={false}
+                      className="mb-6"
+                    />
+                  )}
+
                   <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-xl font-semibold">Monitoring Status</h2>
@@ -572,13 +624,17 @@ export default function EditorPage() {
               <div className="space-y-6">
                 <AnalysisDashboard 
                   result={analysisResult} 
-                  textContent={analysisResult.textContent}
-                  submissionInfo={isAssignmentMode && assignment ? {
-                    assignmentTitle: assignment.title,
-                    wordCount: analysisResult.wordCount,
-                    timeSpent: analysisResult.timeSpent
-                  } : undefined}
                 />
+                
+                {/* Screen Activity Summary - Only show for assignments */}
+                {isAssignmentMode && calibrationComplete && (
+                  <ScreenTracker 
+                    trackingState={screenTracker}
+                    showDetails={true}
+                    className="mb-6"
+                  />
+                )}
+
                 {isAssignmentMode && (
                   <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
                     <h3 className="text-lg font-semibold mb-4">Submit Assignment</h3>
@@ -589,6 +645,22 @@ export default function EditorPage() {
                       <div className="mb-4 p-3 bg-red-50 dark:bg-red-900 rounded-lg">
                         <p className="text-red-800 dark:text-red-200 text-sm">
                           ⚠️ This assignment is overdue. You may still submit, but it will be marked as late.
+                        </p>
+                      </div>
+                    )}
+                    {/* Show warning if suspicious activities detected */}
+                    {screenTracker.suspiciousActivityCount > 0 && (
+                      <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900 rounded-lg">
+                        <p className="text-orange-800 dark:text-orange-200 text-sm">
+                          ⚠️ {screenTracker.suspiciousActivityCount} suspicious activities detected during this session. 
+                          This information will be included with your submission for review.
+                        </p>
+                      </div>
+                    )}
+                    {screenTracker.aiToolDetections > 0 && (
+                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-900 rounded-lg">
+                        <p className="text-red-800 dark:text-red-200 text-sm">
+                          🚨 AI tool usage detected during this session. This will be flagged for academic integrity review.
                         </p>
                       </div>
                     )}

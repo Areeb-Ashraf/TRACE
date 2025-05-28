@@ -61,6 +61,7 @@ model User {
   references       Reference[]
   createdAssignments Assignment[] @relation("ProfessorAssignments")
   submissions      Submission[]
+  screenTrackings  ScreenTracking[]
 
   @@map("users")
 }
@@ -134,6 +135,7 @@ model Submission {
 
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  screenTrackings ScreenTracking[]
 
   @@unique([assignmentId, studentId])
   @@map("submissions")
@@ -170,4 +172,19 @@ model Reference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("references")
+}
+
+model ScreenTracking {
+  id           String   @id @default(cuid())
+  submissionId String   @map("submission_id")
+  userId       String   @map("user_id")
+  activities   String   @db.Text // JSON string of screen activities
+  summary      String?  @db.Text // JSON string of summary data
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("screen_trackings")
 }

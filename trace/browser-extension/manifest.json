@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "TRACE Academic Integrity Monitor",
+  "version": "1.0",
+  "description": "Monitors browser activity during academic assessments",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "background"
+  ],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://localhost:*/*",
+    "https://your-trace-domain.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*",
+        "https://localhost:*/*",
+        "https://your-trace-domain.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*",
+        "https://localhost:*/*",
+        "https://your-trace-domain.com/*"
+      ],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TRACE Monitor",
+    "default_icon": {
+      "16": "icon.svg",
+      "32": "icon.svg",
+      "48": "icon.svg",
+      "128": "icon.svg"
+    }
+  },
+  "icons": {
+    "16": "icon.svg",
+    "32": "icon.svg",
+    "48": "icon.svg",
+    "128": "icon.svg"
+  }
+} 
