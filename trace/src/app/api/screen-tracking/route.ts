@@ -14,16 +14,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { submissionId, activities, summary } = body;
+    const { submissionId, quizSubmissionId, activities, summary } = body;
 
-    if (!submissionId || !activities) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!activities) {
+      return NextResponse.json({ error: 'Activities are required' }, { status: 400 });
+    }
+
+    if (!submissionId && !quizSubmissionId) {
+      return NextResponse.json({ error: 'Either submissionId or quizSubmissionId is required' }, { status: 400 });
     }
 
     // Save screen tracking data
     const screenTracking = await prisma.screenTracking.create({
       data: {
-        submissionId,
+        submissionId: submissionId || null,
+        quizSubmissionId: quizSubmissionId || null,
         userId: session.user.id,
         activities: JSON.stringify(activities),
         summary: JSON.stringify(summary),
@@ -55,17 +60,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const submissionId = searchParams.get('submissionId');
+    const quizSubmissionId = searchParams.get('quizSubmissionId');
 
-    if (!submissionId) {
-      return NextResponse.json({ error: 'Missing submissionId' }, { status: 400 });
+    if (!submissionId && !quizSubmissionId) {
+      return NextResponse.json({ error: 'Either submissionId or quizSubmissionId is required' }, { status: 400 });
+    }
+
+    // Build where clause based on submission type
+    const whereClause: any = {
+      userId: session.user.id,
+    };
+
+    if (submissionId) {
+      whereClause.submissionId = submissionId;
+    } else if (quizSubmissionId) {
+      whereClause.quizSubmissionId = quizSubmissionId;
     }
 
     // Get screen tracking data for the submission
     const screenTracking = await prisma.screenTracking.findFirst({
-      where: {
-        submissionId,
-        userId: session.user.id,
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc',
       },

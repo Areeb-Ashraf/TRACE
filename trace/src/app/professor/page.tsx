@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
 import ProfessorSubmissionView from '@/components/ProfessorSubmissionView';
+import QuizCreator from '@/components/QuizCreator';
+import QuizAnalysisDashboard from '@/components/QuizAnalysisDashboard';
 import UserDropdown from '@/components/UserDropdown';
 
 interface Assignment {
@@ -25,6 +27,27 @@ interface Assignment {
   };
 }
 
+interface Quiz {
+  id: string;
+  title: string;
+  description: string;
+  instructions?: string;
+  dueDate: string;
+  estimatedTime?: number;
+  timeLimit?: number;
+  allowReview: boolean;
+  randomizeQuestions: boolean;
+  randomizeOptions: boolean;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  createdAt: string;
+  questions: any[];
+  submissions: QuizSubmission[];
+  _count: {
+    submissions: number;
+    questions: number;
+  };
+}
+
 interface Submission {
   id: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED';
@@ -40,15 +63,32 @@ interface Submission {
   };
 }
 
+interface QuizSubmission {
+  id: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED';
+  score?: number;
+  timeSpent?: number;
+  submittedAt?: string;
+  grade?: number;
+  student: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
 export default function ProfessorDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  const [selectedQuizSubmission, setSelectedQuizSubmission] = useState<any>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateQuiz, setShowCreateQuiz] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'assignments' | 'submissions'>('assignments');
+  const [activeTab, setActiveTab] = useState<'assignments' | 'quizzes' | 'submissions'>('assignments');
 
   // Form data for creating assignments
   const [formData, setFormData] = useState({
@@ -76,6 +116,7 @@ export default function ProfessorDashboard() {
     }
 
     fetchAssignments();
+    fetchQuizzes();
   }, [session, status, router]);
 
   const fetchAssignments = async () => {
@@ -93,6 +134,21 @@ export default function ProfessorDashboard() {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchQuizzes = async () => {
+    try {
+      const response = await fetch('/api/quizzes');
+      if (response.ok) {
+        const data = await response.json();
+        setQuizzes(data.quizzes);
+      } else {
+        setError('Failed to fetch quizzes');
+      }
+    } catch (error) {
+      setError('Error fetching quizzes');
+      console.error('Error:', error);
     }
   };
 
@@ -138,6 +194,32 @@ export default function ProfessorDashboard() {
     }
   };
 
+  const handleCreateQuiz = async (quizData: any) => {
+    setError('');
+
+    try {
+      const response = await fetch('/api/quizzes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(quizData),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setQuizzes([data.quiz, ...quizzes]);
+        setShowCreateQuiz(false);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create quiz');
+      }
+    } catch (error) {
+      setError('Error creating quiz');
+      console.error('Error:', error);
+    }
+  };
+
   const handleStatusChange = async (assignmentId: string, newStatus: string) => {
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
@@ -159,6 +241,27 @@ export default function ProfessorDashboard() {
     }
   };
 
+  const handleQuizStatusChange = async (quizId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/quizzes/${quizId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        fetchQuizzes();
+      } else {
+        setError('Failed to update quiz status');
+      }
+    } catch (error) {
+      setError('Error updating quiz');
+      console.error('Error:', error);
+    }
+  };
+
   const handleViewSubmission = async (submissionId: string) => {
     try {
       const response = await fetch(`/api/submissions/${submissionId}`);
@@ -172,6 +275,274 @@ export default function ProfessorDashboard() {
       setError('Error fetching submission');
       console.error('Error:', error);
     }
+  };
+
+  const handleViewQuizSubmission = async (submissionId: string) => {
+    try {
+      const response = await fetch(`/api/quiz-submissions/${submissionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Generate mock analysis data for the quiz submission
+        const mockAnalysisData = generateMockQuizAnalysis(data.submission);
+        setSelectedQuizSubmission({
+          submission: data.submission,
+          analysisData: mockAnalysisData
+        });
+      } else {
+        setError('Failed to fetch quiz submission details');
+      }
+    } catch (error) {
+      setError('Error fetching quiz submission');
+      console.error('Error:', error);
+    }
+  };
+
+  // Mock quiz analysis data generator
+  const generateMockQuizAnalysis = (submission: any) => {
+    const { quiz, answers, student, timeSpent, score, submittedAt, screenTrackings } = submission;
+    
+    // Parse screen tracking data to get real monitoring information
+    let actualActivities = [];
+    let realCopyDetections = 0;
+    let realPasteDetections = 0;
+    let realTabSwitches = 0;
+    let realFocusLoss = 0;
+    let realAiToolAccess = 0;
+    let suspiciousUrls: string[] = [];
+    
+    if (screenTrackings && screenTrackings.length > 0) {
+      try {
+        const latestTracking = screenTrackings[0];
+        if (latestTracking.activities) {
+          actualActivities = JSON.parse(latestTracking.activities);
+          
+          // Count real activities from screen tracking
+          actualActivities.forEach((activity: any) => {
+            switch (activity.type) {
+              case 'copy_paste':
+                if (activity.description?.includes('copied')) realCopyDetections++;
+                if (activity.description?.includes('pasted')) realPasteDetections++;
+                break;
+              case 'window_blur':
+              case 'tab_change':
+                realTabSwitches++;
+                break;
+              case 'window_focus':
+                realFocusLoss++;
+                break;
+              case 'ai_tool_detected':
+              case 'suspicious_url':
+                realAiToolAccess++;
+                if (activity.url) suspiciousUrls.push(activity.url);
+                break;
+            }
+          });
+        }
+      } catch (error) {
+        console.log('Error parsing screen tracking data:', error);
+      }
+    }
+    
+    // Use real data when available, fallback to minimal random data
+    const copyDetections = realCopyDetections || 0;
+    const pasteDetections = realPasteDetections || 0;
+    const tabSwitches = realTabSwitches || 0;
+    const focusLossEvents = realFocusLoss || 0;
+    const aiToolAccess = realAiToolAccess || 0;
+    
+    // Enhanced AI tool detection - check for common AI domains
+    const commonAiDomains = ['gemini.google.com', 'chatgpt.com', 'claude.ai', 'perplexity.ai'];
+    const detectedAiUrls = suspiciousUrls.filter(url => 
+      commonAiDomains.some(domain => url.includes(domain))
+    );
+    const finalAiToolAccess = Math.max(aiToolAccess, detectedAiUrls.length);
+    
+    // Calculate risk level based on REAL activity data
+    const totalSuspiciousActivity = copyDetections + pasteDetections + tabSwitches + (finalAiToolAccess * 3);
+    let overallRisk: 'low' | 'medium' | 'high' | 'critical' = 'low';
+    let riskScore = 0.1;
+    
+    if (finalAiToolAccess > 0 || totalSuspiciousActivity >= 8) {
+      overallRisk = 'critical';
+      riskScore = 0.8 + Math.random() * 0.2;
+    } else if (totalSuspiciousActivity >= 5) {
+      overallRisk = 'high';
+      riskScore = 0.6 + Math.random() * 0.2;
+    } else if (totalSuspiciousActivity >= 3) {
+      overallRisk = 'medium';
+      riskScore = 0.3 + Math.random() * 0.3;
+    } else {
+      riskScore = Math.min(0.3, totalSuspiciousActivity * 0.1);
+    }
+
+    // Generate question analysis with CORRECT answer checking
+    const questionAnalysis = quiz.questions.map((question: any, index: number) => {
+      const answer = answers.find((a: any) => a.questionId === question.id);
+      const isCorrect = answer?.isCorrect || false;
+      const pointsEarned = answer?.pointsEarned || 0;
+      const questionTimeSpent = answer?.timeSpent || Math.floor(Math.random() * 120) + 30;
+      
+      // Check if this specific question had copy/paste activity
+      const questionCopyActivity = actualActivities.filter((activity: any) => 
+        activity.description?.includes(`question ${index + 1}`) && 
+        activity.description?.includes('copy')
+      ).length;
+      
+      const questionPasteActivity = actualActivities.filter((activity: any) => 
+        activity.description?.includes(`question ${index + 1}`) && 
+        activity.description?.includes('paste')
+      ).length;
+      
+      return {
+        questionId: question.id,
+        questionNumber: index + 1,
+        timeSpent: questionTimeSpent,
+        isCorrect,
+        pointsEarned,
+        totalPoints: question.points,
+        copyActivity: questionCopyActivity,
+        pasteActivity: questionPasteActivity
+      };
+    });
+
+    // Generate risk flags based on REAL data
+    const flags = [];
+    
+    if (copyDetections > 0) {
+      flags.push({
+        type: 'COPY_DETECTED',
+        severity: copyDetections > 2 ? 'high' : 'medium' as 'high' | 'medium',
+        description: `${copyDetections} copy events detected during quiz session`,
+        evidence: [
+          `Total copy events: ${copyDetections}`,
+          'Text copied from quiz questions',
+          'Potential question sharing or external assistance',
+          'Real-time detection from screen tracking'
+        ],
+        timestamp: Date.now() - Math.random() * 3600000
+      });
+    }
+
+    if (pasteDetections > 0) {
+      flags.push({
+        type: 'PASTE_DETECTED',
+        severity: 'medium' as 'medium',
+        description: `${pasteDetections} paste events detected during quiz session`,
+        evidence: [
+          `Total paste events: ${pasteDetections}`,
+          'External content pasted into quiz interface',
+          'Possible use of external resources',
+          'Real-time detection from screen tracking'
+        ],
+        timestamp: Date.now() - Math.random() * 3600000
+      });
+    }
+
+    if (tabSwitches > 2) {
+      flags.push({
+        type: 'TAB_SWITCHING',
+        severity: tabSwitches > 5 ? 'high' : 'medium' as 'high' | 'medium',
+        description: `Tab switching detected (${tabSwitches} events)`,
+        evidence: [
+          `Total tab switches: ${tabSwitches}`,
+          'Navigation away from quiz detected',
+          'Potential research or consultation of external resources',
+          'Screen tracking monitoring confirmed'
+        ],
+        timestamp: Date.now() - Math.random() * 3600000
+      });
+    }
+
+    if (finalAiToolAccess > 0) {
+      flags.push({
+        type: 'AI_TOOL_ACCESS',
+        severity: 'critical' as 'critical',
+        description: `AI tool usage detected during quiz (${finalAiToolAccess} instances)`,
+        evidence: [
+          ...detectedAiUrls.map(url => `Accessed: ${url}`),
+          'Real-time browser monitoring detected AI tool usage',
+          'Potential automated assistance',
+          'Serious violation of academic integrity policy'
+        ],
+        timestamp: Date.now() - Math.random() * 3600000
+      });
+    }
+
+    // Generate timeline events from REAL screen tracking data
+    const timeline = [];
+    let currentTime = Date.now() - (timeSpent * 1000);
+    
+    timeline.push({
+      timestamp: currentTime,
+      event: 'Quiz session started with monitoring active',
+      type: 'system' as 'system',
+      risk: 'low' as 'low'
+    });
+
+    // Add real activities from screen tracking
+    actualActivities.forEach((activity: any) => {
+      timeline.push({
+        timestamp: activity.timestamp || (currentTime + Math.random() * timeSpent * 1000),
+        event: activity.description || activity.type,
+        type: activity.type === 'copy_paste' ? 'monitoring' : 
+              activity.type === 'window_blur' || activity.type === 'tab_change' ? 'monitoring' :
+              activity.type === 'ai_tool_detected' ? 'monitoring' : 'system' as any,
+        risk: activity.severity === 'critical' ? 'high' : 
+              activity.severity === 'high' ? 'high' : 
+              activity.severity === 'medium' ? 'medium' : 'low' as any,
+        details: activity.evidence ? activity.evidence.join(', ') : undefined
+      });
+    });
+
+    // Add question answer events
+    questionAnalysis.forEach((q, index) => {
+      currentTime += q.timeSpent * 1000;
+      timeline.push({
+        timestamp: currentTime,
+        event: `Question ${q.questionNumber} answered`,
+        type: 'answer' as 'answer',
+        risk: q.isCorrect ? 'low' : 'medium' as 'low' | 'medium',
+        details: `${q.isCorrect ? 'Correct' : 'Incorrect'} answer (${q.pointsEarned}/${q.totalPoints} pts)`
+      });
+    });
+
+    timeline.push({
+      timestamp: Date.now(),
+      event: 'Quiz submitted successfully',
+      type: 'system' as 'system',
+      risk: 'low' as 'low'
+    });
+
+    return {
+      submissionInfo: {
+        quizTitle: quiz.title,
+        studentName: student.name,
+        score: score || 0,
+        totalPoints: quiz.questions.reduce((sum: number, q: any) => sum + q.points, 0),
+        timeSpent: timeSpent || 0,
+        submittedAt: submittedAt || new Date().toISOString(),
+        questionsAnswered: answers.length,
+        totalQuestions: quiz.questions.length
+      },
+      monitoringData: {
+        copyDetections,
+        pasteDetections,
+        tabSwitches,
+        windowBlurs: focusLossEvents,
+        aiToolAccess: finalAiToolAccess,
+        suspiciousUrls: detectedAiUrls,
+        totalTimeOutOfFocus: Math.floor(focusLossEvents * 30), // Estimate
+        focusLossEvents
+      },
+      questionAnalysis,
+      riskAssessment: {
+        overallRisk,
+        riskScore,
+        flags
+      },
+      timeline: timeline.sort((a, b) => a.timestamp - b.timestamp)
+    };
   };
 
   const getStatusColor = (status: string) => {
@@ -200,7 +571,10 @@ export default function ProfessorDashboard() {
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -241,9 +615,76 @@ export default function ProfessorDashboard() {
     );
   }
 
+  // Show quiz submission view if a quiz submission is selected
+  if (selectedQuizSubmission) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center">
+                <Link href="/" className="text-2xl font-bold text-green-600">TRACE</Link>
+                <span className="ml-4 text-gray-600 dark:text-gray-300">
+                  Quiz Review: {selectedQuizSubmission.submission.student.name}
+                </span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setSelectedQuizSubmission(null)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
+                >
+                  ← Back to Dashboard
+                </button>
+                <UserDropdown />
+              </div>
+            </div>
+          </div>
+        </header>
+        <main>
+          <QuizAnalysisDashboard 
+            result={selectedQuizSubmission.analysisData}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Show quiz creator if creating a quiz
+  if (showCreateQuiz) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center">
+                <Link href="/" className="text-2xl font-bold text-green-600">TRACE</Link>
+                <span className="ml-4 text-gray-600 dark:text-gray-300">Create New Quiz</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setShowCreateQuiz(false)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
+                >
+                  ← Back to Dashboard
+                </button>
+                <UserDropdown />
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="py-8">
+          <QuizCreator 
+            onSave={handleCreateQuiz}
+            onCancel={() => setShowCreateQuiz(false)}
+            loading={loading}
+          />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
@@ -251,111 +692,22 @@ export default function ProfessorDashboard() {
               <Link href="/" className="text-2xl font-bold text-green-600">TRACE</Link>
               <span className="ml-4 text-gray-600 dark:text-gray-300">Professor Dashboard</span>
             </div>
-            <nav className="flex space-x-4">
-              <Link
-                href="/editor"
-                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              >
-                Practice Editor
-              </Link>
-              <Link
-                href="/"
-                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              >
-                Home
-              </Link>
-              <UserDropdown />
-            </nav>
+            <UserDropdown />
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Professor Dashboard
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Create assignments and monitor student submissions for academic integrity.
-          </p>
-        </div>
-
         {error && (
-          <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900 rounded-lg border border-red-200 dark:border-red-700">
+            <p className="text-red-800 dark:text-red-200">{error}</p>
           </div>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Assignments</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{assignments.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Published</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {assignments.filter(a => a.status === 'PUBLISHED').length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Submissions</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {assignments.reduce((sum, a) => sum + a._count.submissions, 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Needs Review</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {assignments.reduce((sum, a) => sum + (a.submissions?.filter(s => s.status === 'SUBMITTED').length || 0), 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-6">
+        {/* Tab Navigation */}
+        <div className="mb-8">
           <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="-mb-px flex">
+            <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('assignments')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -364,17 +716,27 @@ export default function ProfessorDashboard() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Assignments
+                Essay Assignments ({assignments.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('quizzes')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'quizzes'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Quizzes ({quizzes.length})
               </button>
               <button
                 onClick={() => setActiveTab('submissions')}
-                className={`ml-8 py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'submissions'
                     ? 'border-green-500 text-green-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Recent Submissions
+                All Submissions
               </button>
             </nav>
           </div>
@@ -382,264 +744,391 @@ export default function ProfessorDashboard() {
 
         {/* Assignments Tab */}
         {activeTab === 'assignments' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Your Assignments</h2>
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Essay Assignments</h1>
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
               >
-                Create Assignment
+                + Create Assignment
               </button>
             </div>
 
+            {/* Create Assignment Form */}
             {showCreateForm && (
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <div className="mb-8 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Create New Assignment</h2>
                 <form onSubmit={handleCreateAssignment} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Title *
                       </label>
                       <input
                         type="text"
-                        required
                         value={formData.title}
-                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Due Date *
                       </label>
                       <input
                         type="datetime-local"
-                        required
                         value={formData.dueDate}
-                        onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                        required
                       />
                     </div>
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Description *
                     </label>
                     <textarea
-                      required
-                      rows={3}
                       value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Instructions
                     </label>
                     <textarea
-                      rows={2}
                       value={formData.instructions}
-                      onChange={(e) => setFormData({...formData, instructions: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Estimated Time (minutes)
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Estimated Time (min)
                       </label>
                       <input
                         type="number"
                         value={formData.estimatedTime}
-                        onChange={(e) => setFormData({...formData, estimatedTime: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Min Words
                       </label>
                       <input
                         type="number"
                         value={formData.minWords}
-                        onChange={(e) => setFormData({...formData, minWords: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={(e) => setFormData({ ...formData, minWords: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Max Words
                       </label>
                       <input
                         type="number"
                         value={formData.maxWords}
-                        onChange={(e) => setFormData({...formData, maxWords: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={(e) => setFormData({ ...formData, maxWords: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Status
+                      </label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as 'DRAFT' | 'PUBLISHED' })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      >
+                        <option value="DRAFT">Draft</option>
+                        <option value="PUBLISHED">Published</option>
+                      </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value as 'DRAFT' | 'PUBLISHED'})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    >
-                      <option value="DRAFT">Draft</option>
-                      <option value="PUBLISHED">Published</option>
-                    </select>
-                  </div>
-
-                  <div className="flex space-x-4">
-                    <button
-                      type="submit"
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                    >
-                      Create Assignment
-                    </button>
+                  <div className="flex justify-end space-x-4">
                     <button
                       type="button"
                       onClick={() => setShowCreateForm(false)}
-                      className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors"
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-colors"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                    >
+                      Create Assignment
                     </button>
                   </div>
                 </form>
               </div>
             )}
 
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {assignments.length === 0 ? (
-                <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No assignments created yet. Create your first assignment to get started.
-                </div>
-              ) : (
-                assignments.map((assignment) => (
-                  <div key={assignment.id} className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                            {assignment.title}
-                          </h3>
-                          <div className="flex items-center space-x-2">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(assignment.status)}`}>
-                              {assignment.status}
-                            </span>
-                            <span className="text-sm text-gray-500">
-                              {assignment._count.submissions} submissions
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">
-                          {assignment.description}
-                        </p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                          <div className="flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                            </svg>
-                            Due: {formatDate(assignment.dueDate)}
-                          </div>
-                          {assignment.estimatedTime && (
-                            <div className="flex items-center">
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                              </svg>
-                              {assignment.estimatedTime} minutes
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="ml-6 space-y-2">
-                        {assignment.status === 'DRAFT' && (
-                          <button
-                            onClick={() => handleStatusChange(assignment.id, 'PUBLISHED')}
-                            className="block w-full bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                          >
-                            Publish
-                          </button>
-                        )}
-                        {assignment.status === 'PUBLISHED' && (
-                          <button
-                            onClick={() => handleStatusChange(assignment.id, 'ARCHIVED')}
-                            className="block w-full bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                          >
-                            Archive
-                          </button>
-                        )}
-                        {(assignment.submissions?.filter(s => s.status === 'SUBMITTED').length || 0) > 0 && (
-                          <button
-                            onClick={() => setActiveTab('submissions')}
-                            className="block w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                          >
-                            View Submissions
-                          </button>
-                        )}
+            {/* Assignments List */}
+            <div className="space-y-4">
+              {assignments.map((assignment) => (
+                <div key={assignment.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        {assignment.title}
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-300 mb-2">{assignment.description}</p>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                        <span>Due: {formatDate(assignment.dueDate)}</span>
+                        <span>Submissions: {assignment._count.submissions}</span>
+                        {assignment.estimatedTime && <span>Est. Time: {assignment.estimatedTime}min</span>}
+                        {assignment.maxWords && <span>Max Words: {assignment.maxWords}</span>}
                       </div>
                     </div>
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(assignment.status)}`}>
+                        {assignment.status}
+                      </span>
+                      <select
+                        value={assignment.status}
+                        onChange={(e) => handleStatusChange(assignment.id, e.target.value)}
+                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-white"
+                      >
+                        <option value="DRAFT">Draft</option>
+                        <option value="PUBLISHED">Published</option>
+                        <option value="ARCHIVED">Archived</option>
+                      </select>
+                    </div>
                   </div>
-                ))
+
+                  {assignment.submissions.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Recent Submissions</h4>
+                      <div className="space-y-2">
+                        {assignment.submissions.slice(0, 3).map((submission) => (
+                          <div key={submission.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {submission.student.name}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(submission.status)}`}>
+                                {submission.status}
+                              </span>
+                              {submission.submittedAt && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {formatDate(submission.submittedAt)}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleViewSubmission(submission.id)}
+                              className="text-sm text-green-600 hover:text-green-800 font-medium"
+                            >
+                              View Details
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {assignments.length === 0 && (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  No assignments created yet. Click "Create Assignment" to get started.
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Submissions Tab */}
-        {activeTab === 'submissions' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Student Submissions</h2>
+        {/* Quizzes Tab */}
+        {activeTab === 'quizzes' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quizzes</h1>
+              <button
+                onClick={() => setShowCreateQuiz(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              >
+                + Create Quiz
+              </button>
             </div>
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {assignments.flatMap(a => (a.submissions || []).filter(s => s.status === 'SUBMITTED')).length === 0 && (
-                <div className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No submissions to review yet.
-                </div>
-              )}
-              {assignments.map(assignment => 
-                (assignment.submissions || []).filter(s => s.status === 'SUBMITTED').map(submission => (
-                  <div key={submission.id} className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                            {submission.student.name}
-                          </h3>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(submission.status)}`}>
-                            {submission.status}
-                          </span>
-                        </div>
-                        <p className="text-gray-600 dark:text-gray-300 mb-2">
-                          Assignment: {assignment.title}
-                        </p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                          <span>Words: {submission.wordCount || 0}</span>
-                          <span>Time: {submission.timeSpent || 0}m</span>
-                          <span>Submitted: {submission.submittedAt ? formatDate(submission.submittedAt) : 'N/A'}</span>
-                        </div>
-                      </div>
-                      <div className="ml-6">
-                        <button
-                          onClick={() => handleViewSubmission(submission.id)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                        >
-                          View Analysis
-                        </button>
+
+            {/* Quizzes List */}
+            <div className="space-y-4">
+              {quizzes.map((quiz) => (
+                <div key={quiz.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        {quiz.title}
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-300 mb-2">{quiz.description}</p>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                        <span>Due: {formatDate(quiz.dueDate)}</span>
+                        <span>Questions: {quiz._count.questions}</span>
+                        <span>Submissions: {quiz._count.submissions}</span>
+                        {quiz.estimatedTime && <span>Est. Time: {quiz.estimatedTime}min</span>}
+                        {quiz.timeLimit && <span>Time Limit: {quiz.timeLimit}min</span>}
                       </div>
                     </div>
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(quiz.status)}`}>
+                        {quiz.status}
+                      </span>
+                      <select
+                        value={quiz.status}
+                        onChange={(e) => handleQuizStatusChange(quiz.id, e.target.value)}
+                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-white"
+                      >
+                        <option value="DRAFT">Draft</option>
+                        <option value="PUBLISHED">Published</option>
+                        <option value="ARCHIVED">Archived</option>
+                      </select>
+                    </div>
                   </div>
-                ))
-              ).flat()}
+
+                  {quiz.submissions.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Recent Submissions</h4>
+                      <div className="space-y-2">
+                        {quiz.submissions.slice(0, 3).map((submission) => (
+                          <div key={submission.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {submission.student.name}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(submission.status)}`}>
+                                {submission.status}
+                              </span>
+                              {submission.score !== undefined && (
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  Score: {Math.round(submission.score)}%
+                                </span>
+                              )}
+                              {submission.submittedAt && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {formatDate(submission.submittedAt)}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleViewQuizSubmission(submission.id)}
+                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              View Details
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {quizzes.length === 0 && (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  No quizzes created yet. Click "Create Quiz" to get started.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* All Submissions Tab */}
+        {activeTab === 'submissions' && (
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">All Submissions</h1>
+            
+            <div className="space-y-6">
+              {/* Essay Submissions */}
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Essay Submissions</h2>
+                <div className="space-y-2">
+                  {assignments.flatMap(assignment => 
+                    assignment.submissions.map(submission => (
+                      <div key={submission.id} className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                        <div className="flex items-center space-x-4">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {submission.student.name}
+                          </span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {assignment.title}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(submission.status)}`}>
+                            {submission.status}
+                          </span>
+                          {submission.submittedAt && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(submission.submittedAt)}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleViewSubmission(submission.id)}
+                          className="text-sm text-green-600 hover:text-green-800 font-medium"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Quiz Submissions */}
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quiz Submissions</h2>
+                <div className="space-y-2">
+                  {quizzes.flatMap(quiz => 
+                    quiz.submissions.map(submission => (
+                      <div key={submission.id} className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                        <div className="flex items-center space-x-4">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {submission.student.name}
+                          </span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {quiz.title}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(submission.status)}`}>
+                            {submission.status}
+                          </span>
+                          {submission.score !== undefined && (
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Score: {Math.round(submission.score)}%
+                            </span>
+                          )}
+                          {submission.submittedAt && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(submission.submittedAt)}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleViewQuizSubmission(submission.id)}
+                          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

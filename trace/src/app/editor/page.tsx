@@ -209,6 +209,22 @@ export default function EditorPage() {
       // Save final screen tracking data before submission
       await saveScreenTrackingData();
       
+      // Stop screen tracking when assignment is submitted
+      screenTracker.stopTracking();
+      
+      // Log submission completion
+      screenTracker.addActivity({
+        type: 'window_focus',
+        severity: 'low',
+        description: 'Essay assignment submitted successfully - monitoring ended',
+        evidence: [
+          'Assignment submission completed',
+          'Screen tracking stopped',
+          `Total monitoring time: ${Math.floor((analysisResult.timeSpent || 0) / 60)} minutes`,
+          `Word count: ${analysisResult.wordCount} words`
+        ]
+      });
+      
       const response = await fetch(`/api/submissions/${submissionId}`, {
         method: 'PUT',
         headers: {
@@ -246,10 +262,18 @@ export default function EditorPage() {
       } else {
         const errorData = await response.json();
         showError(errorData.error || 'Failed to submit assignment');
+        // If submission failed, restart tracking since we stopped it
+        if (isAssignmentMode) {
+          screenTracker.startTracking();
+        }
       }
     } catch (error) {
       showError('Error submitting assignment');
       console.error('Error:', error);
+      // If submission failed, restart tracking since we stopped it  
+      if (isAssignmentMode) {
+        screenTracker.startTracking();
+      }
     } finally {
       setSubmitting(false);
     }

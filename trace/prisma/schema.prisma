@@ -62,6 +62,8 @@ model User {
   createdAssignments Assignment[] @relation("ProfessorAssignments")
   submissions      Submission[]
   screenTrackings  ScreenTracking[]
+  createdQuizzes   Quiz[] @relation("ProfessorQuizzes")
+  quizSubmissions  QuizSubmission[]
 
   @@map("users")
 }
@@ -95,6 +97,11 @@ enum SubmissionStatus {
   GRADED
 }
 
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+}
+
 model Assignment {
   id               String           @id @default(cuid())
   professorId      String           @map("professor_id")
@@ -113,6 +120,108 @@ model Assignment {
   submissions  Submission[]
 
   @@map("assignments")
+}
+
+model Quiz {
+  id               String           @id @default(cuid())
+  professorId      String           @map("professor_id")
+  title            String
+  description      String           @db.Text
+  instructions     String?          @db.Text
+  dueDate          DateTime         @map("due_date")
+  estimatedTime    Int?             @map("estimated_time") // in minutes
+  timeLimit        Int?             @map("time_limit") // time limit for taking quiz in minutes
+  allowReview      Boolean          @default(false) @map("allow_review") // allow review after submission
+  randomizeQuestions Boolean        @default(false) @map("randomize_questions")
+  randomizeOptions Boolean          @default(false) @map("randomize_options")
+  status           AssignmentStatus @default(DRAFT)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  professor       User               @relation("ProfessorQuizzes", fields: [professorId], references: [id], onDelete: Cascade)
+  questions       QuizQuestion[]
+  submissions     QuizSubmission[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id          String       @id @default(cuid())
+  quizId      String       @map("quiz_id")
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  question    String       @db.Text
+  points      Int          @default(1)
+  order       Int          // question order in quiz
+  explanation String?      @db.Text // explanation for correct answer
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  quiz    Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options QuizOption[]
+  answers QuizAnswer[]
+
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String   @id @default(cuid())
+  questionId String   @map("question_id")
+  text       String   @db.Text
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  order      Int      // option order in question
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers  QuizAnswer[]
+
+  @@map("quiz_options")
+}
+
+model QuizSubmission {
+  id               String           @id @default(cuid())
+  quizId           String           @map("quiz_id")
+  studentId        String           @map("student_id")
+  status           SubmissionStatus @default(PENDING)
+  startedAt        DateTime?        @map("started_at")
+  submittedAt      DateTime?        @map("submitted_at")
+  timeSpent        Int?             @map("time_spent") // in seconds
+  score            Float?           // percentage score
+  totalPoints      Int?             @map("total_points")
+  earnedPoints     Int?             @map("earned_points")
+  sessionS3Key     String?          @map("session_s3_key") // Monitoring data
+  analysisS3Key    String?          @map("analysis_s3_key") // Analysis results
+  grade            Float?
+  feedback         String?          @db.Text
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  quiz            Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student         User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers         QuizAnswer[]
+  screenTrackings ScreenTracking[]
+
+  @@unique([quizId, studentId])
+  @@map("quiz_submissions")
+}
+
+model QuizAnswer {
+  id           String   @id @default(cuid())
+  submissionId String   @map("submission_id")
+  questionId   String   @map("question_id")
+  optionId     String?  @map("option_id") // null for unanswered questions
+  isCorrect    Boolean? @map("is_correct")
+  pointsEarned Int?     @map("points_earned")
+  timeSpent    Int?     @map("time_spent") // time spent on this question in seconds
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  submission QuizSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   QuizQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  option     QuizOption?    @relation(fields: [optionId], references: [id], onDelete: SetNull)
+
+  @@unique([submissionId, questionId])
+  @@map("quiz_answers")
 }
 
 model Submission {
@@ -176,15 +285,17 @@ model Reference {
 
 model ScreenTracking {
   id           String   @id @default(cuid())
-  submissionId String   @map("submission_id")
+  submissionId String?  @map("submission_id") // can be null for quiz submissions
+  quizSubmissionId String? @map("quiz_submission_id") // for quiz submissions
   userId       String   @map("user_id")
   activities   String   @db.Text // JSON string of screen activities
   summary      String?  @db.Text // JSON string of summary data
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submission     Submission?     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  quizSubmission QuizSubmission? @relation(fields: [quizSubmissionId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("screen_trackings")
 }
