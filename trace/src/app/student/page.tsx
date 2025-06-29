@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import QuizTaker from '@/components/QuizTaker';
 import UserDropdown from '@/components/UserDropdown';
+import AssignmentDetailsModal from '@/components/AssignmentDetailsModal';
 
 interface Assignment {
   id: string;
@@ -64,7 +65,10 @@ export default function StudentDashboard() {
   const router = useRouter();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [currentQuizSubmission, setCurrentQuizSubmission] = useState<QuizSubmission | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'assignments' | 'quizzes'>('assignments');
@@ -161,7 +165,7 @@ export default function StudentDashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        setCurrentQuizSubmission(data.submission);
+        setCurrentQuiz(data.submission.quiz);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to start quiz');
@@ -173,10 +177,10 @@ export default function StudentDashboard() {
   };
 
   const handleSaveQuizAnswers = async (answers: any[], timeSpent: number) => {
-    if (!currentQuizSubmission) return;
+    if (!currentQuiz) return;
 
     try {
-      const response = await fetch(`/api/quiz-submissions/${currentQuizSubmission.id}`, {
+      const response = await fetch(`/api/quiz-submissions/${currentQuiz.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -199,10 +203,10 @@ export default function StudentDashboard() {
   };
 
   const handleSubmitQuiz = async (answers: any[], timeSpent: number) => {
-    if (!currentQuizSubmission) return;
+    if (!currentQuiz) return;
 
     try {
-      const response = await fetch(`/api/quiz-submissions/${currentQuizSubmission.id}`, {
+      const response = await fetch(`/api/quiz-submissions/${currentQuiz.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -216,7 +220,7 @@ export default function StudentDashboard() {
 
       if (response.ok) {
         // Quiz completed successfully - clear current submission
-        setCurrentQuizSubmission(null);
+        setCurrentQuiz(null);
         fetchQuizzes(); // Refresh quiz list to show updated status
         
         // Show success message
@@ -233,7 +237,7 @@ export default function StudentDashboard() {
 
   const handleExitQuiz = () => {
     // User is exiting quiz - clear current submission (monitoring will stop in QuizTaker)
-    setCurrentQuizSubmission(null);
+    setCurrentQuiz(null);
   };
 
   const getAssignmentStatus = (assignment: Assignment) => {
@@ -273,10 +277,10 @@ export default function StudentDashboard() {
   };
 
   // If taking a quiz, show the quiz interface
-  if (currentQuizSubmission) {
+  if (currentQuiz) {
     return (
       <QuizTaker
-        submission={currentQuizSubmission}
+        submission={currentQuiz.submissions[0]}
         onSaveAnswers={handleSaveQuizAnswers}
         onSubmit={handleSubmitQuiz}
         onExit={handleExitQuiz}
@@ -477,9 +481,34 @@ export default function StudentDashboard() {
                             {assignment.description}
                           </p>
                           {assignment.instructions && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 italic">
-                              Instructions: {assignment.instructions}
-                            </p>
+                            <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                              <div className="flex items-start">
+                                <span className="font-medium mr-2">Instructions:</span>
+                                <div className="flex-1">
+                                  {(() => {
+                                    // Check if instructions contain numbered steps
+                                    const lines = assignment.instructions.split('\n').filter(line => line.trim());
+                                    const hasNumberedSteps = lines.some(line => /^\d+\./.test(line.trim()));
+                                    
+                                    if (hasNumberedSteps) {
+                                      return (
+                                        <ol className="list-decimal list-inside space-y-1">
+                                          {lines.map((line, index) => (
+                                            <li key={index} className="text-gray-500 dark:text-gray-400">
+                                              {line.replace(/^\d+\.\s*/, '')}
+                                            </li>
+                                          ))}
+                                        </ol>
+                                      );
+                                    }
+                                    
+                                    return (
+                                      <span className="italic">{assignment.instructions}</span>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
                           )}
                           <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                             <div className="flex items-center">
@@ -519,20 +548,42 @@ export default function StudentDashboard() {
                         </div>
                         <div className="ml-6">
                           {status === 'pending' && !overdue && (
-                            <button
-                              onClick={() => handleStartAssignment(assignment.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                            >
-                              Start Assignment
-                            </button>
+                            <div className="space-y-2">
+                              <button
+                                onClick={() => handleStartAssignment(assignment.id)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-full"
+                              >
+                                Start Assignment
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedAssignment(assignment);
+                                  setShowAssignmentModal(true);
+                                }}
+                                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-full text-sm"
+                              >
+                                View Details
+                              </button>
+                            </div>
                           )}
                           {status === 'in_progress' && !overdue && (
-                            <button
-                              onClick={() => handleStartAssignment(assignment.id)}
-                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                            >
-                              Continue Assignment
-                            </button>
+                            <div className="space-y-2">
+                              <button
+                                onClick={() => handleStartAssignment(assignment.id)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-full"
+                              >
+                                Continue Assignment
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedAssignment(assignment);
+                                  setShowAssignmentModal(true);
+                                }}
+                                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-colors w-full text-sm"
+                              >
+                                View Details
+                              </button>
+                            </div>
                           )}
                           {status === 'submitted' && (
                             <div className="text-center">
@@ -540,6 +591,15 @@ export default function StudentDashboard() {
                               <div className="text-xs text-gray-400">
                                 {submission?.submittedAt ? formatDate(submission.submittedAt) : ''}
                               </div>
+                              <button
+                                onClick={() => {
+                                  setSelectedAssignment(assignment);
+                                  setShowAssignmentModal(true);
+                                }}
+                                className="mt-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                              >
+                                View Details
+                              </button>
                             </div>
                           )}
                           {status === 'graded' && (
@@ -548,12 +608,30 @@ export default function StudentDashboard() {
                               <div className="text-xs text-gray-400">
                                 {submission?.submittedAt ? formatDate(submission.submittedAt) : ''}
                               </div>
+                              <button
+                                onClick={() => {
+                                  setSelectedAssignment(assignment);
+                                  setShowAssignmentModal(true);
+                                }}
+                                className="mt-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                              >
+                                View Details
+                              </button>
                             </div>
                           )}
                           {overdue && status === 'pending' && (
                             <div className="text-center">
                               <div className="text-sm text-red-600 font-medium">Overdue</div>
                               <div className="text-xs text-gray-400">Cannot start</div>
+                              <button
+                                onClick={() => {
+                                  setSelectedAssignment(assignment);
+                                  setShowAssignmentModal(true);
+                                }}
+                                className="mt-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                              >
+                                View Details
+                              </button>
                             </div>
                           )}
                         </div>
@@ -609,9 +687,34 @@ export default function StudentDashboard() {
                             {quiz.description}
                           </p>
                           {quiz.instructions && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 italic">
-                              Instructions: {quiz.instructions}
-                            </p>
+                            <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                              <div className="flex items-start">
+                                <span className="font-medium mr-2">Instructions:</span>
+                                <div className="flex-1">
+                                  {(() => {
+                                    // Check if instructions contain numbered steps
+                                    const lines = quiz.instructions.split('\n').filter(line => line.trim());
+                                    const hasNumberedSteps = lines.some(line => /^\d+\./.test(line.trim()));
+                                    
+                                    if (hasNumberedSteps) {
+                                      return (
+                                        <ol className="list-decimal list-inside space-y-1">
+                                          {lines.map((line, index) => (
+                                            <li key={index} className="text-gray-500 dark:text-gray-400">
+                                              {line.replace(/^\d+\.\s*/, '')}
+                                            </li>
+                                          ))}
+                                        </ol>
+                                      );
+                                    }
+                                    
+                                    return (
+                                      <span className="italic">{quiz.instructions}</span>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
                           )}
                           <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                             <div className="flex items-center">
@@ -719,6 +822,18 @@ export default function StudentDashboard() {
           </div>
         )}
       </main>
+
+      {/* Assignment Details Modal */}
+      {selectedAssignment && (
+        <AssignmentDetailsModal
+          isOpen={showAssignmentModal}
+          onClose={() => {
+            setShowAssignmentModal(false);
+            setSelectedAssignment(null);
+          }}
+          assignment={selectedAssignment}
+        />
+      )}
     </div>
   );
 } 

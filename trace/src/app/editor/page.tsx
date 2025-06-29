@@ -415,7 +415,29 @@ export default function EditorPage() {
                 {assignment.instructions && (
                   <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
                     <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">Instructions:</h3>
-                    <p className="text-blue-800 dark:text-blue-200 text-sm">{assignment.instructions}</p>
+                    <div className="text-blue-800 dark:text-blue-200 text-sm">
+                      {(() => {
+                        // Check if instructions contain numbered steps
+                        const lines = assignment.instructions.split('\n').filter(line => line.trim());
+                        const hasNumberedSteps = lines.some(line => /^\d+\./.test(line.trim()));
+                        
+                        if (hasNumberedSteps) {
+                          return (
+                            <ol className="list-decimal list-inside space-y-1">
+                              {lines.map((line, index) => (
+                                <li key={index}>
+                                  {line.replace(/^\d+\.\s*/, '')}
+                                </li>
+                              ))}
+                            </ol>
+                          );
+                        }
+                        
+                        return (
+                          <div className="whitespace-pre-wrap">{assignment.instructions}</div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
                 <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">

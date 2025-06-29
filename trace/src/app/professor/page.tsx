@@ -8,6 +8,7 @@ import AnalysisDashboard from '@/components/AnalysisDashboard';
 import ProfessorSubmissionView from '@/components/ProfessorSubmissionView';
 import QuizCreator from '@/components/QuizCreator';
 import QuizAnalysisDashboard from '@/components/QuizAnalysisDashboard';
+import AIAssignmentCreator from '@/components/AIAssignmentCreator';
 import UserDropdown from '@/components/UserDropdown';
 
 interface Assignment {
@@ -88,7 +89,7 @@ export default function ProfessorDashboard() {
   const [showCreateQuiz, setShowCreateQuiz] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'assignments' | 'quizzes' | 'submissions'>('assignments');
+  const [activeTab, setActiveTab] = useState<'assignments' | 'quizzes' | 'submissions' | 'ai-creator'>('assignments');
 
   // Form data for creating assignments
   const [formData, setFormData] = useState({
@@ -496,7 +497,7 @@ export default function ProfessorDashboard() {
     });
 
     // Add question answer events
-    questionAnalysis.forEach((q, index) => {
+    questionAnalysis.forEach((q: any, index: number) => {
       currentTime += q.timeSpent * 1000;
       timeline.push({
         timestamp: currentTime,
@@ -737,6 +738,16 @@ export default function ProfessorDashboard() {
                 }`}
               >
                 All Submissions
+              </button>
+              <button
+                onClick={() => setActiveTab('ai-creator')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'ai-creator'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                AI Assignment Creator
               </button>
             </nav>
           </div>
@@ -1130,6 +1141,13 @@ export default function ProfessorDashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* AI Assignment Creator Tab */}
+        {activeTab === 'ai-creator' && (
+          <div>
+            <AIAssignmentCreator />
           </div>
         )}
       </main>
