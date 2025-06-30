@@ -164,7 +164,110 @@ export const ASSIGNMENT_PROMPTS = {
       "totalHours": 48
     },
     "resources": ["Resource 1", "Resource 2"]
-  }`
+  }`,
+
+  lesson: `Create a comprehensive lesson based on the following information:
+  
+  Subject: {subject}
+  Topic: {topic}
+  Learning Objectives: {learningObjectives}
+  Difficulty Level: {difficulty}
+  Estimated Duration: {duration} minutes
+  Additional Requirements: {requirements}
+  
+  Create an engaging, interactive lesson that:
+  1. Introduces the topic with clear context
+  2. Breaks down complex concepts into digestible sections
+  3. Includes practical examples and applications
+  4. Provides interactive elements and checkpoints
+  5. Encourages critical thinking and reflection
+  6. Connects to real-world applications
+  
+  Format your response as JSON:
+  {
+    "title": "Engaging Lesson Title",
+    "description": "Clear lesson overview and what students will learn",
+    "content": "Main lesson content with rich formatting, examples, and explanations",
+    "sections": [
+      {
+        "title": "Section Title",
+        "content": "Section content with examples and explanations",
+        "sectionType": "content",
+        "order": 1,
+        "metadata": {
+          "keyPoints": ["Point 1", "Point 2"],
+          "examples": ["Example 1"],
+          "checkpointQuestion": "What did you learn from this section?"
+        }
+      }
+    ],
+    "learningObjectives": ["Specific learning outcomes"],
+    "resources": ["Additional resources and references"],
+    "estimatedTime": 60,
+    "keyTakeaways": ["Main points students should remember"]
+  }`,
+
+  lessonFromDocument: `Create a comprehensive lesson based on the following document content:
+  
+  Document Content: {documentContent}
+  Subject: {subject}
+  Topic: {topic}
+  Learning Objectives: {learningObjectives}
+  Difficulty Level: {difficulty}
+  Estimated Duration: {duration} minutes
+  Additional Requirements: {requirements}
+  
+  Analyze the document and create an engaging lesson that:
+  1. Extracts key concepts and information from the document
+  2. Organizes content into logical, digestible sections
+  3. Adds explanations and context where needed
+  4. Creates interactive elements and knowledge checks
+  5. Connects document content to practical applications
+  6. Ensures alignment with learning objectives
+  
+  Format your response as JSON:
+  {
+    "title": "Lesson Title Based on Document",
+    "description": "Clear lesson overview derived from document content",
+    "content": "Main lesson content synthesized from document with explanations",
+    "sections": [
+      {
+        "title": "Section Title",
+        "content": "Section content based on document with additional explanations",
+        "sectionType": "content",
+        "order": 1,
+        "metadata": {
+          "keyPoints": ["Key concepts from document"],
+          "examples": ["Examples from or related to document"],
+          "checkpointQuestion": "Understanding check question",
+          "documentReferences": ["Page numbers or sections referenced"]
+        }
+      }
+    ],
+    "learningObjectives": ["Learning outcomes based on document content"],
+    "resources": ["Document references and additional resources"],
+    "estimatedTime": 60,
+    "keyTakeaways": ["Main concepts students should understand from document"]
+  }`,
+
+  lessonChat: `You are an AI tutor helping a student understand a lesson. You have access to the full lesson content and should provide helpful, encouraging responses.
+
+  Lesson Context: {lessonContent}
+  Learning Objectives: {learningObjectives}
+  
+  Guidelines for responses:
+  1. Always be encouraging and supportive
+  2. Provide clear, concise explanations
+  3. Use examples from the lesson content when relevant
+  4. Ask follow-up questions to check understanding
+  5. Break down complex concepts into simpler parts
+  6. Relate concepts to real-world applications
+  7. If the question is outside the lesson scope, gently redirect to lesson content
+  8. Use an encouraging, friendly tone suitable for learning
+  
+  Student Question: {question}
+  
+  Provide a helpful response that aids the student's understanding of the lesson.`
 };
 
 export const ERROR_MESSAGES = {

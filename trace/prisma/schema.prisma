@@ -64,6 +64,9 @@ model User {
   screenTrackings  ScreenTracking[]
   createdQuizzes   Quiz[] @relation("ProfessorQuizzes")
   quizSubmissions  QuizSubmission[]
+  createdLessons   Lesson[] @relation("ProfessorLessons")
+  lessonProgress   LessonProgress[]
+  lessonChatHistory LessonChatHistory[]
 
   @@map("users")
 }
@@ -298,4 +301,81 @@ model ScreenTracking {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("screen_trackings")
+}
+
+// New Lesson Models
+model Lesson {
+  id               String           @id @default(cuid())
+  professorId      String           @map("professor_id")
+  title            String
+  description      String           @db.Text
+  subject          String?          // e.g., Mathematics, History, etc.
+  topic            String?          // specific topic within subject
+  difficulty       String           @default("intermediate") // beginner, intermediate, advanced
+  estimatedTime    Int?             @map("estimated_time") // in minutes
+  learningObjectives String[]       @map("learning_objectives") // array of objectives
+  content          String           @db.Text // main lesson content
+  resources        String[]         @default([]) // additional resources/links
+  status           AssignmentStatus @default(DRAFT)
+  sourceType       String?          @map("source_type") // "manual" or "document"
+  sourceS3Key      String?          @map("source_s3_key") // reference to uploaded document if applicable
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  professor        User                @relation("ProfessorLessons", fields: [professorId], references: [id], onDelete: Cascade)
+  sections         LessonSection[]
+  progress         LessonProgress[]
+  chatHistory      LessonChatHistory[]
+
+  @@map("lessons")
+}
+
+model LessonSection {
+  id          String   @id @default(cuid())
+  lessonId    String   @map("lesson_id")
+  title       String
+  content     String   @db.Text
+  order       Int      // section order in lesson
+  sectionType String   @default("content") @map("section_type") // content, activity, quiz, discussion
+  metadata    Json?    // flexible data for different section types
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("lesson_sections")
+}
+
+model LessonProgress {
+  id            String   @id @default(cuid())
+  lessonId      String   @map("lesson_id")
+  studentId     String   @map("student_id")
+  status        String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  progressData  Json?    @map("progress_data") // track which sections completed, time spent, etc.
+  timeSpent     Int?     @map("time_spent") // total time spent in minutes
+  completedAt   DateTime? @map("completed_at")
+  lastAccessAt  DateTime? @map("last_access_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@map("lesson_progress")
+}
+
+model LessonChatHistory {
+  id        String   @id @default(cuid())
+  lessonId  String   @map("lesson_id")
+  studentId String   @map("student_id")
+  messages  Json     // array of chat messages with timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@map("lesson_chat_history")
 }

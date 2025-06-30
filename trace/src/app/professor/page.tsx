@@ -9,6 +9,7 @@ import ProfessorSubmissionView from '@/components/ProfessorSubmissionView';
 import QuizCreator from '@/components/QuizCreator';
 import QuizAnalysisDashboard from '@/components/QuizAnalysisDashboard';
 import AIAssignmentCreator from '@/components/AIAssignmentCreator';
+import AILessonCreator from '@/components/AILessonCreator';
 import UserDropdown from '@/components/UserDropdown';
 
 interface Assignment {
@@ -78,18 +79,52 @@ interface QuizSubmission {
   };
 }
 
+interface Lesson {
+  id: string;
+  title: string;
+  description: string;
+  subject?: string;
+  topic?: string;
+  difficulty: string;
+  estimatedTime?: number;
+  learningObjectives: string[];
+  content: string;
+  resources: string[];
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  sourceType?: string;
+  createdAt: string;
+  progress: LessonProgress[];
+  _count: {
+    progress: number;
+  };
+}
+
+interface LessonProgress {
+  id: string;
+  status: string;
+  timeSpent?: number;
+  completedAt?: string;
+  lastAccessAt?: string;
+  student: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
 export default function ProfessorDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
   const [selectedQuizSubmission, setSelectedQuizSubmission] = useState<any>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showCreateQuiz, setShowCreateQuiz] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'assignments' | 'quizzes' | 'submissions' | 'ai-creator'>('assignments');
+  const [activeTab, setActiveTab] = useState<'assignments' | 'quizzes' | 'lessons' | 'submissions' | 'ai-creator' | 'lesson-creator'>('assignments');
 
   // Form data for creating assignments
   const [formData, setFormData] = useState({
@@ -118,6 +153,7 @@ export default function ProfessorDashboard() {
 
     fetchAssignments();
     fetchQuizzes();
+    fetchLessons();
   }, [session, status, router]);
 
   const fetchAssignments = async () => {
@@ -149,6 +185,21 @@ export default function ProfessorDashboard() {
       }
     } catch (error) {
       setError('Error fetching quizzes');
+      console.error('Error:', error);
+    }
+  };
+
+  const fetchLessons = async () => {
+    try {
+      const response = await fetch('/api/lessons');
+      if (response.ok) {
+        const data = await response.json();
+        setLessons(data.lessons);
+      } else {
+        setError('Failed to fetch lessons');
+      }
+    } catch (error) {
+      setError('Error fetching lessons');
       console.error('Error:', error);
     }
   };
@@ -259,6 +310,27 @@ export default function ProfessorDashboard() {
       }
     } catch (error) {
       setError('Error updating quiz');
+      console.error('Error:', error);
+    }
+  };
+
+  const handleLessonStatusChange = async (lessonId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/lessons/${lessonId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        fetchLessons();
+      } else {
+        setError('Failed to update lesson status');
+      }
+    } catch (error) {
+      setError('Error updating lesson');
       console.error('Error:', error);
     }
   };
@@ -730,6 +802,16 @@ export default function ProfessorDashboard() {
                 Quizzes ({quizzes.length})
               </button>
               <button
+                onClick={() => setActiveTab('lessons')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'lessons'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Lessons ({lessons.length})
+              </button>
+              <button
                 onClick={() => setActiveTab('submissions')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'submissions'
@@ -748,6 +830,16 @@ export default function ProfessorDashboard() {
                 }`}
               >
                 AI Assignment Creator
+              </button>
+              <button
+                onClick={() => setActiveTab('lesson-creator')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'lesson-creator'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                AI Lesson Creator
               </button>
             </nav>
           </div>
@@ -1144,10 +1236,121 @@ export default function ProfessorDashboard() {
           </div>
         )}
 
+        {/* Lessons Tab */}
+        {activeTab === 'lessons' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lessons</h1>
+            </div>
+
+            {/* Lessons List */}
+            <div className="space-y-4">
+              {lessons.map((lesson) => (
+                <div key={lesson.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-300 mb-2">{lesson.description}</p>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                        {lesson.subject && <span>📘 {lesson.subject}</span>}
+                        {lesson.topic && <span>🎯 {lesson.topic}</span>}
+                        <span>📊 {lesson.difficulty}</span>
+                        <span>👥 {lesson._count.progress} students</span>
+                        {lesson.estimatedTime && <span>⏱️ {lesson.estimatedTime}min</span>}
+                        <span>📁 {lesson.sourceType || 'manual'}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(lesson.status)}`}>
+                        {lesson.status}
+                      </span>
+                      <select
+                        value={lesson.status}
+                        onChange={(e) => handleLessonStatusChange(lesson.id, e.target.value)}
+                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-white"
+                      >
+                        <option value="DRAFT">Draft</option>
+                        <option value="PUBLISHED">Published</option>
+                        <option value="ARCHIVED">Archived</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {lesson.learningObjectives.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">🎯 Learning Objectives</h4>
+                      <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                        {lesson.learningObjectives.slice(0, 3).map((objective, index) => (
+                          <li key={index}>{objective}</li>
+                        ))}
+                        {lesson.learningObjectives.length > 3 && (
+                          <li className="text-gray-500">... and {lesson.learningObjectives.length - 3} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {lesson.progress.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Recent Student Progress</h4>
+                      <div className="space-y-2">
+                        {lesson.progress.slice(0, 3).map((progress) => (
+                          <div key={progress.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {progress.student.name}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                progress.status === 'COMPLETED' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : progress.status === 'IN_PROGRESS'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {progress.status === 'COMPLETED' ? '✅ Complete' : 
+                                 progress.status === 'IN_PROGRESS' ? '📚 In Progress' : '⏸️ Not Started'}
+                              </span>
+                              {progress.timeSpent && (
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  Time: {progress.timeSpent}min
+                                </span>
+                              )}
+                              {progress.lastAccessAt && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  Last access: {formatDate(progress.lastAccessAt)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {lessons.length === 0 && (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  No lessons created yet. Use the "AI Lesson Creator" to get started.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* AI Assignment Creator Tab */}
         {activeTab === 'ai-creator' && (
           <div>
             <AIAssignmentCreator />
+          </div>
+        )}
+
+        {/* AI Lesson Creator Tab */}
+        {activeTab === 'lesson-creator' && (
+          <div>
+            <AILessonCreator />
           </div>
         )}
       </main>
