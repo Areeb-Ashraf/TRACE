@@ -70,106 +70,113 @@ export default function SignUp() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
-      <div className="max-w-md w-full space-y-8 p-8">
-        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl shadow-xl border border-indigo-200 dark:border-indigo-700 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 py-12">
+      <div className="max-w-md w-full mx-4">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-block">
+            <div className="flex items-center justify-center mb-2">
+              <img src="/trace_logo.png" alt="TRACE" className="h-12 w-12 mr-3" />
+              <h1 className="text-4xl font-bold text-[#222e3e]">TRACE</h1>
+            </div>
+          </Link>
+          <p className="text-gray-600">AI-Powered Educational Intelligence Platform</p>
+        </div>
+
+        {/* Sign Up Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
-              TRACE
-            </h1>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-3xl font-bold text-[#222e3e] mb-2">
               Create your account
             </h2>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Join the academic integrity monitoring platform
+            <p className="text-gray-600">
+              Join thousands of educators and students using TRACE
             </p>
           </div>
           
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Full Name
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={handleChange}
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleChange}
-                />
-              </div>
+            <div>
+              <label htmlFor="name" className="block text-sm font-semibold text-[#222e3e] mb-2">
+                Full Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
+                placeholder="Enter your full name"
+                value={formData.name}
+                onChange={handleChange}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-[#222e3e] mb-2">
+                Email Address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
 
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Role
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
-                  value={formData.role}
-                  onChange={handleChange}
-                >
-                  <option value="STUDENT">Student</option>
-                  <option value="PROFESSOR">Professor</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="role" className="block text-sm font-semibold text-[#222e3e] mb-2">
+                Role
+              </label>
+              <select
+                id="role"
+                name="role"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 bg-white"
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="STUDENT">Student</option>
+                <option value="PROFESSOR">Professor</option>
+              </select>
+            </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
-                  placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={handleChange}
-                />
-              </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-[#222e3e] mb-2">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleChange}
+              />
+            </div>
 
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Confirm Password
-                </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors"
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                />
-              </div>
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-[#222e3e] mb-2">
+                Confirm Password
+              </label>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+              />
             </div>
 
             {/* Consent Checkbox */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <div className="flex items-start space-x-3">
                 <div className="flex items-center h-5">
                   <input
@@ -177,14 +184,14 @@ export default function SignUp() {
                     type="checkbox"
                     checked={consentChecked}
                     onChange={(e) => setConsentChecked(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    className="w-4 h-4 text-[#222e3e] bg-gray-100 border-gray-300 rounded focus:ring-[#222e3e] focus:ring-2"
                   />
                 </div>
                 <div className="text-sm">
-                  <label htmlFor="consent" className="font-medium text-amber-800 dark:text-amber-200 cursor-pointer">
+                  <label htmlFor="consent" className="font-semibold text-amber-800 cursor-pointer">
                     I consent to data tracking and monitoring
                   </label>
-                  <p className="text-amber-700 dark:text-amber-300 mt-1 text-xs leading-relaxed">
+                  <p className="text-amber-700 mt-1 text-xs leading-relaxed">
                     By registering, you consent to comprehensive monitoring during assignments/tests including: <strong>keystroke logging</strong>, <strong>window activity tracking</strong>, <strong>URL monitoring</strong>, and <strong>behavioral pattern analysis</strong> through our Chrome extension for academic integrity purposes.
                   </p>
                 </div>
@@ -192,40 +199,70 @@ export default function SignUp() {
             </div>
 
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3">
-                <div className="text-red-800 dark:text-red-200 text-sm text-center font-medium">{error}</div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-red-800 text-sm font-medium">{error}</span>
+                </div>
               </div>
             )}
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading || !consentChecked}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg"
-              >
-                {loading ? (
-                  <div className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Creating account...
-                  </div>
-                ) : (
-                  "Create Account"
-                )}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading || !consentChecked}
+              className="w-full bg-[#222e3e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#1a242f] focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creating account...
+                </div>
+              ) : (
+                "Create Account"
+              )}
+            </button>
 
-            <div className="text-center">
-              <Link
-                href="/auth/signin"
-                className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
-              >
-                Already have an account? Sign in
-              </Link>
+            <div className="text-center pt-4">
+              <p className="text-gray-600">
+                Already have an account?{" "}
+                <Link
+                  href="/auth/signin"
+                  className="font-semibold text-[#222e3e] hover:text-[#1a242f] transition-colors"
+                >
+                  Sign in
+                </Link>
+              </p>
             </div>
           </form>
+        </div>
+
+        {/* Trust indicators */}
+        <div className="mt-8 text-center">
+          <div className="flex justify-center items-center space-x-6 text-sm text-gray-500">
+            <div className="flex items-center">
+              <svg className="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              Secure Registration
+            </div>
+            <div className="flex items-center">
+              <svg className="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              FERPA Compliant
+            </div>
+            <div className="flex items-center">
+              <svg className="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Free 14-Day Trial
+            </div>
+          </div>
         </div>
       </div>
     </div>
