@@ -52,6 +52,8 @@ model User {
   emailVerified DateTime? @map("email_verified")
   image         String?
   role          UserRole  @default(STUDENT)
+  verificationCode          String?   @map("verification_code")
+  verificationCodeExpires DateTime? @map("verification_code_expires")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -67,6 +69,17 @@ model User {
   createdLessons   Lesson[] @relation("ProfessorLessons")
   lessonProgress   LessonProgress[]
   lessonChatHistory LessonChatHistory[]
+  teachingClasses  Class[]            @relation("ProfessorClasses") // Professor's classes
+  enrolledClasses  StudentOnClass[] // Student's enrolled classes
+  
+  // Relations for new features
+  comments         Comment[] // Comments authored by the user
+  discussionPosts  DiscussionPost[] // Discussion posts authored by the user
+  
+  // Relations for messaging
+  conversations    Conversation[] @relation("ConversationParticipants")
+  messagesSent     Message[]
+  messagesRead     Message[]      @relation("MessageReadBy")
 
   @@map("users")
 }
@@ -78,6 +91,36 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verificationtokens")
+}
+
+// New Class Model
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  professorId String   @map("professor_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  professor   User             @relation("ProfessorClasses", fields: [professorId], references: [id], onDelete: Cascade)
+  students    StudentOnClass[]
+  assignments Assignment[]
+  quizzes     Quiz[]
+  lessons     Lesson[]
+
+  @@map("classes")
+}
+
+// Junction table for many-to-many relationship between Student and Class
+model StudentOnClass {
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId   String
+  assignedAt DateTime @default(now())
+
+  @@id([studentId, classId])
+  @@map("students_on_classes")
 }
 
 // Application Models
@@ -108,6 +151,7 @@ enum QuestionType {
 model Assignment {
   id               String           @id @default(cuid())
   professorId      String           @map("professor_id")
+  classId          String           @map("class_id") // New field
   title            String
   description      String           @db.Text
   instructions     String?          @db.Text
@@ -120,7 +164,10 @@ model Assignment {
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   professor    User         @relation("ProfessorAssignments", fields: [professorId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade) // New relation
   submissions  Submission[]
+  comments     Comment[]    @relation("AssignmentComments")
+  discussionBoard DiscussionBoard?
 
   @@map("assignments")
 }
@@ -128,6 +175,7 @@ model Assignment {
 model Quiz {
   id               String           @id @default(cuid())
   professorId      String           @map("professor_id")
+  classId          String           @map("class_id") // New field
   title            String
   description      String           @db.Text
   instructions     String?          @db.Text
@@ -142,8 +190,10 @@ model Quiz {
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   professor       User               @relation("ProfessorQuizzes", fields: [professorId], references: [id], onDelete: Cascade)
+  class           Class              @relation(fields: [classId], references: [id], onDelete: Cascade) // New relation
   questions       QuizQuestion[]
   submissions     QuizSubmission[]
+  comments        Comment[]          @relation("QuizComments")
 
   @@map("quizzes")
 }
@@ -307,6 +357,7 @@ model ScreenTracking {
 model Lesson {
   id               String           @id @default(cuid())
   professorId      String           @map("professor_id")
+  classId          String           @map("class_id") // New field
   title            String
   description      String           @db.Text
   subject          String?          // e.g., Mathematics, History, etc.
@@ -317,15 +368,18 @@ model Lesson {
   content          String           @db.Text // main lesson content
   resources        String[]         @default([]) // additional resources/links
   status           AssignmentStatus @default(DRAFT)
+  dueDate          DateTime?        @map("due_date") // New: Optional due date for lessons
   sourceType       String?          @map("source_type") // "manual" or "document"
   sourceS3Key      String?          @map("source_s3_key") // reference to uploaded document if applicable
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   professor        User                @relation("ProfessorLessons", fields: [professorId], references: [id], onDelete: Cascade)
+  class            Class               @relation(fields: [classId], references: [id], onDelete: Cascade) // New relation
   sections         LessonSection[]
   progress         LessonProgress[]
   chatHistory      LessonChatHistory[]
+  comments         Comment[]           @relation("LessonComments")
 
   @@map("lessons")
 }
@@ -354,6 +408,8 @@ model LessonProgress {
   progressData  Json?    @map("progress_data") // track which sections completed, time spent, etc.
   timeSpent     Int?     @map("time_spent") // total time spent in minutes
   completedAt   DateTime? @map("completed_at")
+  grade         Float?   // New: Grade assigned by the professor
+  feedback      String?  @db.Text // New: Feedback from the professor
   lastAccessAt  DateTime? @map("last_access_at")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -378,4 +434,95 @@ model LessonChatHistory {
 
   @@unique([lessonId, studentId])
   @@map("lesson_chat_history")
+}
+
+// Private Comments Model - Only visible to the student who wrote it and the teacher
+model Comment {
+  id           String   @id @default(cuid())
+  content      String   @db.Text // The comment content
+  userId       String   @map("user_id") // The student who wrote the comment
+  
+  // Only one of these will be set per comment
+  assignmentId String?  @map("assignment_id") // If commenting on an assignment
+  quizId       String?  @map("quiz_id")       // If commenting on a quiz  
+  lessonId     String?  @map("lesson_id")     // If commenting on a lesson
+  
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment Assignment? @relation("AssignmentComments", fields: [assignmentId], references: [id], onDelete: Cascade)
+  quiz       Quiz?       @relation("QuizComments", fields: [quizId], references: [id], onDelete: Cascade)
+  lesson     Lesson?     @relation("LessonComments", fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+// New Models for Messaging and Discussions
+
+// Model for a direct or group conversation
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Many-to-many relationship with users
+  participants User[]           @relation("ConversationParticipants")
+  messages     Message[]
+  
+  // Optional name for group chats
+  name         String?
+
+  @@map("conversations")
+}
+
+// Model for a single message within a conversation
+model Message {
+  id             String   @id @default(cuid())
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+  
+  conversationId String
+  senderId       String
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  readBy         User[]       @relation("MessageReadBy")
+
+  @@map("messages")
+}
+
+// Model for a discussion board, linked to an assignment
+model DiscussionBoard {
+  id           String   @id @default(cuid())
+  assignmentId String   @unique // Each discussion is linked to one assignment
+  prompt       String   @db.Text // The discussion prompt or question
+  
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  posts        DiscussionPost[]
+
+  @@map("discussion_boards")
+}
+
+// Model for a single post or reply in a discussion
+model DiscussionPost {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  boardId   String
+  authorId  String
+
+  // For threaded replies
+  parentId  String?
+  parent    DiscussionPost?  @relation("Replies", fields: [parentId], references: [id], onDelete: NoAction)
+  replies   DiscussionPost[] @relation("Replies")
+
+  board     DiscussionBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author    User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("discussion_posts")
 }

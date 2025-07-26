@@ -4,18 +4,32 @@ import { useState } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
+import PasswordStrength from "@/components/PasswordStrength" // Import the new component
 
 export default function SignIn() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+
+  const isPasswordValid = 
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
+
+    if (!isPasswordValid) {
+      setError("Password does not meet the requirements.")
+      setLoading(false)
+      return
+    }
 
     try {
       const result = await signIn("credentials", {
@@ -88,16 +102,32 @@ export default function SignIn() {
               <label htmlFor="password" className="block text-sm font-semibold text-[#222e3e] mb-2">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"} // Toggle type based on state
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500 pr-10" // Added pr-10 for icon space
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-sm leading-5 text-gray-500"
+                >
+                  <span className="flex items-center justify-center h-5 w-5">
+                    {showPassword ? (
+                      <EyeIcon className="h-5 w-5 fill-none stroke-current" strokeWidth={2} />
+                    ) : (
+                      <EyeSlashIcon className="h-5 w-5 fill-none stroke-current" strokeWidth={2} />
+                    )}
+                  </span>
+                </button>
+              </div>
+              <PasswordStrength password={password} /> {/* Add the component here */}
             </div>
 
             {error && (

@@ -1,8 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline' // Import icons
+import PasswordStrength from "@/components/PasswordStrength" // Import the new component
+import { XMarkIcon } from '@heroicons/react/24/outline' // Import XMarkIcon
 
 export default function SignUp() {
   const [formData, setFormData] = useState({
@@ -15,15 +18,28 @@ export default function SignUp() {
   const [consentChecked, setConsentChecked] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false) // New state for password visibility
+  const [passwordsMatch, setPasswordsMatch] = useState(true)
   const router = useRouter()
+
+  const isPasswordValid = 
+    formData.password.length >= 8 &&
+    /[A-Z]/.test(formData.password) &&
+    /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
-    if (formData.password !== formData.confirmPassword) {
+    if (!passwordsMatch) {
       setError("Passwords do not match")
+      setLoading(false)
+      return
+    }
+
+    if (!isPasswordValid) {
+      setError("Password does not meet the requirements.")
       setLoading(false)
       return
     }
@@ -51,7 +67,13 @@ export default function SignUp() {
       const data = await response.json()
 
       if (response.ok) {
-        router.push("/auth/signin?message=Account created successfully")
+        if (data.requiresVerification) {
+          // Redirect to verification page with email
+          router.push(`/auth/verify?email=${encodeURIComponent(data.email)}`)
+        } else {
+          // Fallback to signin if no verification required
+          router.push("/auth/signin?message=Account created successfully. Please sign in.")
+        }
       } else {
         setError(data.error || "An error occurred")
       }
@@ -63,10 +85,13 @@ export default function SignUp() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
+    const { name, value } = e.target;
+    const newFormData = { ...formData, [name]: value };
+    setFormData(newFormData);
+
+    if (name === "password" || name === "confirmPassword") {
+      setPasswordsMatch(newFormData.password === newFormData.confirmPassword);
+    }
   }
 
   return (
@@ -147,32 +172,69 @@ export default function SignUp() {
               <label htmlFor="password" className="block text-sm font-semibold text-[#222e3e] mb-2">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"} // Toggle type based on state
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500 pr-10" // Added pr-10 for icon space
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-sm leading-5 text-gray-500"
+                >
+                  <span className="flex items-center justify-center h-5 w-5">
+                    {showPassword ? (
+                      <EyeIcon className="h-5 w-5 fill-none stroke-current" strokeWidth={2} />
+                    ) : (
+                      <EyeSlashIcon className="h-5 w-5 fill-none stroke-current" strokeWidth={2} />
+                    )}
+                  </span>
+                </button>
+              </div>
+              <PasswordStrength password={formData.password} /> {/* Add the component here */}
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-semibold text-[#222e3e] mb-2">
                 Confirm Password
               </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-              />
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showPassword ? "text" : "password"} // Toggle type based on state
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:border-transparent transition-all text-gray-900 placeholder-gray-500 pr-10" // Added pr-10 for icon space
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-sm leading-5 text-gray-500"
+                >
+                  <span className="flex items-center justify-center h-5 w-5">
+                    {showPassword ? (
+                      <EyeIcon className="h-5 w-5 fill-none stroke-current" strokeWidth={2} />
+                    ) : (
+                      <EyeSlashIcon className="h-5 w-5 fill-none stroke-current" strokeWidth={2} />
+                    )}
+                  </span>
+                </button>
+              </div>
+              {!passwordsMatch && formData.confirmPassword && (
+                <div className="mt-2 flex items-center text-sm text-red-600">
+                  <XMarkIcon className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" />
+                  <span>Passwords do not match.</span>
+                </div>
+              )}
             </div>
 
             {/* Consent Checkbox */}
@@ -211,7 +273,7 @@ export default function SignUp() {
 
             <button
               type="submit"
-              disabled={loading || !consentChecked}
+              disabled={loading || !consentChecked || !passwordsMatch}
               className="w-full bg-[#222e3e] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#1a242f] focus:outline-none focus:ring-2 focus:ring-[#222e3e] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
             >
               {loading ? (

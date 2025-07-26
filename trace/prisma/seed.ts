@@ -43,6 +43,29 @@ async function main() {
     },
   })
 
+  // Create test classes
+  const class1 = await prisma.class.upsert({
+    where: { id: 'test-class-1' },
+    update: {},
+    create: {
+      id: 'test-class-1',
+      name: 'Introduction to Environmental Science',
+      description: 'A comprehensive course covering the fundamentals of environmental science and sustainability.',
+      professorId: professor.id,
+    },
+  })
+
+  const class2 = await prisma.class.upsert({
+    where: { id: 'test-class-2' },
+    update: {},
+    create: {
+      id: 'test-class-2',
+      name: 'Advanced Literature Studies',
+      description: 'An in-depth exploration of classic and contemporary literature with focus on critical analysis.',
+      professorId: professor.id,
+    },
+  })
+
   // Create test assignments
   const assignment1 = await prisma.assignment.upsert({
     where: { id: 'test-assignment-1' },
@@ -58,6 +81,7 @@ async function main() {
       maxWords: 1200,
       status: 'PUBLISHED',
       professorId: professor.id,
+      classId: class1.id,
     },
   })
 
@@ -75,6 +99,7 @@ async function main() {
       maxWords: 1500,
       status: 'PUBLISHED',
       professorId: professor.id,
+      classId: class2.id,
     },
   })
 
@@ -92,6 +117,7 @@ async function main() {
       maxWords: 2000,
       status: 'DRAFT', // This one is still a draft
       professorId: professor.id,
+      classId: class1.id,
     },
   })
 
@@ -100,6 +126,9 @@ async function main() {
   console.log('   Professor: professor@test.com / professor123')
   console.log('   Student 1: student1@test.com / student123')
   console.log('   Student 2: student2@test.com / student123')
+  console.log('🏫 Test classes created:')
+  console.log(`   - ${class1.name}`)
+  console.log(`   - ${class2.name}`)
   console.log('📝 Test assignments created:')
   console.log(`   - ${assignment1.title} (Published)`)
   console.log(`   - ${assignment2.title} (Published)`)
