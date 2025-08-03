@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/useToast';
+import { useSession } from 'next-auth/react'; // Import useSession
 
 interface LessonForm {
-  subject: string;
   topic: string;
   learningObjectives: string[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   duration: number;
   requirements: string;
   sourceType: 'manual' | 'document';
+  classId: string; // Add classId
 }
 
 interface GeneratedLesson {
@@ -35,15 +36,19 @@ interface GeneratedLesson {
   keyTakeaways: string[];
 }
 
-export default function AILessonCreator() {
+interface AILessonCreatorProps {
+  onLessonCreated?: (lesson: any) => void; // Now accepts lesson object
+}
+
+export default function AILessonCreator({ onLessonCreated }: AILessonCreatorProps) {
   const [form, setForm] = useState<LessonForm>({
-    subject: '',
     topic: '',
     learningObjectives: [''],
     difficulty: 'intermediate',
     duration: 60,
     requirements: '',
-    sourceType: 'manual'
+    sourceType: 'manual',
+    classId: '' // Initialize classId
   });
 
   const [generatedLesson, setGeneratedLesson] = useState<GeneratedLesson | null>(null);
@@ -55,6 +60,34 @@ export default function AILessonCreator() {
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { success, error: showError } = useToast();
+  const { data: session } = useSession(); // Get session
+
+  const [classes, setClasses] = useState<any[]>([]); // State for classes
+
+  useEffect(() => {
+    if (session?.user?.role === "PROFESSOR") {
+      fetchClasses();
+    }
+  }, [session]);
+
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch('/api/classes');
+      if (response.ok) {
+        const data = await response.json();
+        setClasses(data);
+        // Optionally set a default class if classes exist
+        if (data.length > 0 && !form.classId) {
+          setForm(prev => ({ ...prev, classId: data[0].id }));
+        }
+      } else {
+        showError('Failed to load classes.');
+      }
+    } catch (err) {
+      console.error('Error fetching classes:', err);
+      showError('Error loading classes.');
+    }
+  };
 
   const handleInputChange = (field: keyof LessonForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -125,7 +158,7 @@ export default function AILessonCreator() {
 
   const generateLesson = async () => {
     // Validate form
-    if (!form.subject || !form.topic) {
+    if (!form.topic || !form.classId) { // Changed validation
       showError('Please fill in all required fields');
       return;
     }
@@ -186,7 +219,6 @@ export default function AILessonCreator() {
         body: JSON.stringify({
           title: generatedLesson.title,
           description: generatedLesson.description,
-          subject: form.subject,
           topic: form.topic,
           difficulty: form.difficulty,
           estimatedTime: generatedLesson.estimatedTime,
@@ -195,7 +227,8 @@ export default function AILessonCreator() {
           resources: generatedLesson.resources,
           sections: generatedLesson.sections,
           status: 'PUBLISHED',
-          sourceType: form.sourceType
+          sourceType: form.sourceType,
+          classId: form.classId, // Include classId
         })
       });
 
@@ -205,18 +238,21 @@ export default function AILessonCreator() {
         success('Lesson created and published! Students can now access it.');
         // Reset form
         setForm({
-          subject: '',
           topic: '',
           learningObjectives: [''],
           difficulty: 'intermediate',
           duration: 60,
           requirements: '',
-          sourceType: 'manual'
+          sourceType: 'manual',
+          classId: '' // Reset classId
         });
         setGeneratedLesson(null);
         setDocumentContent('');
         setUploadedFileName('');
         setActiveTab('form');
+        if (onLessonCreated) {
+          onLessonCreated(data.lesson); // Pass the created lesson back
+        }
       } else {
         showError('Failed to save lesson');
       }
@@ -338,19 +374,8 @@ export default function AILessonCreator() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Subject */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                📘 Subject *
-              </label>
-              <input
-                type="text"
-                value={form.subject}
-                onChange={(e) => handleInputChange('subject', e.target.value)}
-                placeholder="e.g., Mathematics, History, Biology"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
+            {/* Removed Subject field */}
+            
             {/* Topic */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -363,6 +388,24 @@ export default function AILessonCreator() {
                 placeholder="e.g., Quadratic Equations, World War II"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+            </div>
+
+            {/* Class Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Class *
+              </label>
+              <select
+                value={form.classId}
+                onChange={(e) => handleInputChange('classId', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              >
+                <option value="">Select a class</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Difficulty */}
@@ -395,6 +438,7 @@ export default function AILessonCreator() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+
           </div>
 
           {/* Learning Objectives */}

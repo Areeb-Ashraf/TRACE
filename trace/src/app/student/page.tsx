@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import QuizTaker from '@/components/QuizTaker';
-import UserDropdown from '@/components/UserDropdown';
 import AssignmentDetailsModal from '@/components/AssignmentDetailsModal';
+import Header from '@/components/Header';
 
 interface Assignment {
   id: string;
@@ -95,7 +94,7 @@ export default function StudentDashboard() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
-  const [showQuiz, setShowQuiz] = useState(false);
+
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -358,32 +357,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-blue-600">TRACE</Link>
-              <span className="ml-4 text-gray-600 dark:text-gray-300">Student Dashboard</span>
-            </div>
-            <nav className="flex space-x-4">
-              <Link
-                href="/editor"
-                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              >
-                Practice Editor
-              </Link>
-              <Link
-                href="/"
-                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-              >
-                Home
-              </Link>
-              <UserDropdown />
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}

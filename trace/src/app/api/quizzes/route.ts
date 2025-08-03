@@ -14,16 +14,32 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "10")
+    const classId = searchParams.get("classId") // New: Get classId from query params
     const skip = (page - 1) * limit
 
-    let whereClause = {}
+    let whereClause: any = {}
     
     if (session.user.role === "PROFESSOR") {
-      // Professors see quizzes they created
+      // Professors see quizzes they created, filtered by classId if provided
       whereClause = { professorId: session.user.id }
+      if (classId) {
+        whereClause.classId = classId
+      }
     } else if (session.user.role === "STUDENT") {
-      // Students see published quizzes
+      // Students see published quizzes for classes they are enrolled in
       whereClause = { status: "PUBLISHED" }
+      if (classId) {
+        // If a specific classId is provided, filter by it
+        whereClause.classId = classId
+      } else {
+        // Otherwise, get all classes the student is enrolled in
+        const studentClasses = await prisma.studentOnClass.findMany({
+          where: { studentId: session.user.id },
+          select: { classId: true },
+        })
+        const enrolledClassIds = studentClasses.map((sc: { classId: string }) => sc.classId)
+        whereClause.classId = { in: enrolledClassIds }
+      }
     } else {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -37,6 +53,12 @@ export async function GET(req: NextRequest) {
               id: true,
               name: true,
               email: true
+            }
+          },
+          class: { // New: Include class information
+            select: {
+              id: true,
+              name: true
             }
           },
           questions: {
@@ -119,12 +141,26 @@ export async function POST(req: NextRequest) {
       randomizeQuestions,
       randomizeOptions,
       status = "DRAFT",
-      questions
+      questions,
+      classId // New: Add classId to the request body
+    }: { 
+      title: string; 
+      description: string; 
+      instructions?: string; 
+      dueDate: string; 
+      estimatedTime?: number;
+      timeLimit?: number;
+      allowReview?: boolean;
+      randomizeQuestions?: boolean;
+      randomizeOptions?: boolean;
+      status?: string;
+      questions: any[];
+      classId: string; // New: classId is required
     } = await req.json()
 
-    if (!title || !description || !dueDate) {
+    if (!title || !description || !dueDate || !classId) { // New: classId is required
       return NextResponse.json(
-        { error: "Title, description, and due date are required" },
+        { error: "Title, description, due date, and class are required" },
         { status: 400 }
       )
     }
@@ -188,11 +224,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Verify professor owns the class
+    const professorOwnsClass = await prisma.class.findFirst({
+      where: {
+        id: classId,
+        professorId: session.user.id,
+      },
+    });
+
+    if (!professorOwnsClass) {
+      return NextResponse.json({ error: "Professor does not own this class" }, { status: 403 });
+    }
+
     console.log('\n📝 Creating quiz with questions and options...')
 
     const quiz = await prisma.quiz.create({
       data: {
         professorId: session.user.id,
+        classId, // New: Add classId to quiz creation
         title,
         description,
         instructions,
@@ -233,6 +282,12 @@ export async function POST(req: NextRequest) {
             id: true,
             name: true,
             email: true
+          }
+        },
+        class: { // New: Include class information after creation
+          select: {
+            id: true,
+            name: true
           }
         },
         questions: {

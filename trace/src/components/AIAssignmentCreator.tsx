@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/useToast';
+import { useSession } from 'next-auth/react'; // Import useSession
 
 interface AssignmentForm {
-  subject: string;
   topic: string;
   learningObjectives: string[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   type: 'essay' | 'project' | 'presentation' | 'research' | 'discussion' | 'quiz';
   duration: number;
   requirements: string;
+  classId: string; // Add classId to AssignmentForm
 }
 
 interface GeneratedAssignment {
@@ -37,19 +38,47 @@ interface GeneratedAssignment {
 
 export default function AIAssignmentCreator() {
   const [form, setForm] = useState<AssignmentForm>({
-    subject: '',
     topic: '',
     learningObjectives: [''],
     difficulty: 'intermediate',
     type: 'essay',
     duration: 60,
-    requirements: ''
+    requirements: '',
+    classId: '' // Initialize classId
   });
 
   const [generatedAssignment, setGeneratedAssignment] = useState<GeneratedAssignment | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
   const { success, error: showError } = useToast();
+  const { data: session } = useSession(); // Get session
+
+  const [classes, setClasses] = useState<any[]>([]); // State for classes
+
+  useEffect(() => {
+    if (session?.user?.role === "PROFESSOR") {
+      fetchClasses();
+    }
+  }, [session]);
+
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch('/api/classes');
+      if (response.ok) {
+        const data = await response.json();
+        setClasses(data);
+        // Optionally set a default class if classes exist
+        if (data.length > 0 && !form.classId) {
+          setForm(prev => ({ ...prev, classId: data[0].id }));
+        }
+      } else {
+        showError('Failed to load classes.');
+      }
+    } catch (err) {
+      console.error('Error fetching classes:', err);
+      showError('Error loading classes.');
+    }
+  };
 
   const handleInputChange = (field: keyof AssignmentForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -76,7 +105,7 @@ export default function AIAssignmentCreator() {
 
   const generateAssignment = async () => {
     // Validate form
-    if (!form.subject || !form.topic) {
+    if (!form.topic || !form.classId) { // Changed validation
       showError('Please fill in all required fields');
       return;
     }
@@ -136,7 +165,8 @@ export default function AIAssignmentCreator() {
           estimatedTime: generatedAssignment.estimatedTime,
           maxWords: form.type === 'essay' ? 1000 : undefined,
           minWords: form.type === 'essay' ? 500 : undefined,
-          status: 'DRAFT'
+          status: 'DRAFT',
+          classId: form.classId, // Include classId
         })
       });
 
@@ -146,13 +176,13 @@ export default function AIAssignmentCreator() {
         success('Assignment created and saved!');
         // Reset form
         setForm({
-          subject: '',
           topic: '',
           learningObjectives: [''],
           difficulty: 'intermediate',
           type: 'essay',
           duration: 60,
-          requirements: ''
+          requirements: '',
+          classId: '' // Reset classId
         });
         setGeneratedAssignment(null);
         setActiveTab('form');
@@ -203,19 +233,6 @@ export default function AIAssignmentCreator() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Subject *
-              </label>
-              <input
-                type="text"
-                value={form.subject}
-                onChange={(e) => handleInputChange('subject', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., Computer Science, Mathematics"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Topic *
               </label>
               <input
@@ -225,6 +242,24 @@ export default function AIAssignmentCreator() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g., Machine Learning, Calculus"
               />
+            </div>
+
+            {/* Class Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Class *
+              </label>
+              <select
+                value={form.classId}
+                onChange={(e) => handleInputChange('classId', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select a class</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -281,7 +316,7 @@ export default function AIAssignmentCreator() {
               </label>
               <select
                 value={form.type}
-                onChange={(e) => handleInputChange('type', e.target.value)}
+                onChange={(e) => handleInputChange('type', e.target.value as 'essay' | 'project' | 'presentation' | 'research' | 'discussion' | 'quiz')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="essay">Essay</option>

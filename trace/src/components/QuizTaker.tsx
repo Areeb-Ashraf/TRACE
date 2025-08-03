@@ -115,18 +115,18 @@ const QuizTaker = ({ submission, onSaveAnswers, onSubmit, onExit, loading = fals
 
   // Timer for tracking time spent
   useEffect(() => {
+    if (!quiz.timeLimit) return;
+    
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setTimeSpent(elapsed);
 
       // Update time remaining if there's a time limit
-      if (quiz.timeLimit) {
-        const remaining = (quiz.timeLimit * 60) - elapsed;
-        setTimeRemaining(remaining);
-        
-        if (remaining <= 0) {
-          handleAutoSubmit();
-        }
+      const remaining = (quiz.timeLimit! * 60) - elapsed;
+      setTimeRemaining(remaining);
+      
+      if (remaining <= 0) {
+        handleAutoSubmit();
       }
     }, 1000);
 

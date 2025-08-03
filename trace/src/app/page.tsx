@@ -3,12 +3,111 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import Header from "@/components/Header";
+
+// Add these testimonial data objects at the top of the file, after the imports
+const testimonials = [
+  {
+    id: 1,
+    text: "TRACE has revolutionized my teaching workflow. The AI generates complete lesson plans from my uploaded documents in minutes, and the keystroke dynamics analysis provides unprecedented insights into student behavior. It's like having a research assistant and integrity expert combined.",
+    author: "Dr. Sarah Martinez",
+    role: "Professor of Computer Science, Stanford University",
+    initials: "SM"
+  },
+  {
+    id: 2,
+    text: "The behavioral analysis is incredibly sophisticated. It's helped me identify students who need additional support while maintaining the highest standards of academic integrity.",
+    author: "Prof. Michael Johnson",
+    role: "Department of Psychology, Harvard University",
+    initials: "MJ"
+  },
+  {
+    id: 3,
+    text: "As an administrator, TRACE has given us institutional-level insights that have improved our academic integrity policies campus-wide. The compliance features are excellent.",
+    author: "Lisa Davis",
+    role: "VP Academic Affairs, MIT",
+    initials: "LD"
+  },
+  {
+    id: 4,
+    text: "The AI-powered content creation has saved me countless hours. What used to take days now takes minutes, and the quality of the generated materials is consistently high. This tool is a game-changer for educators.",
+    author: "Dr. James Wilson",
+    role: "Department Chair, UC Berkeley",
+    initials: "JW"
+  },
+  {
+    id: 5,
+    text: "TRACE's integration with our existing LMS was seamless. The analytics provide deep insights into student engagement and learning patterns that we never had access to before.",
+    author: "Prof. Emily Chen",
+    role: "Educational Technology, Yale University",
+    initials: "EC"
+  },
+  {
+    id: 6,
+    text: "The Chrome extension is brilliant. It provides real-time monitoring without being intrusive, and the behavioral analysis helps us identify students who might need additional support early on.",
+    author: "Dr. Robert Taylor",
+    role: "Computer Science Department, Princeton",
+    initials: "RT"
+  }
+];
+
+const TRANSITION_DURATION = 1000; // milliseconds - increased from 700 to make animation more noticeable
 
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+
+  // --- New Carousel Logic ---
+  const extendedTestimonials = useMemo(() => {
+    const clonesStart = testimonials.slice(-3);
+    const clonesEnd = testimonials.slice(0, 3);
+    return [...clonesStart, ...testimonials, ...clonesEnd];
+  }, []);
+
+  const [currentIndex, setCurrentIndex] = useState(3);
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
+
+  const handleNext = () => {
+    setCurrentIndex(prevIndex => prevIndex + 1);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex(prevIndex => prevIndex - 1);
+  };
+
+  const handleTransitionEnd = () => {
+    // After sliding to the 'clones' at the end of the list,
+    // jump back to the beginning of the real list.
+    if (currentIndex === testimonials.length + 3) {
+      setTransitionEnabled(false);
+      setCurrentIndex(3);
+    }
+
+    // After sliding to the 'clones' at the beginning of the list,
+    // jump back to the end of the real list.
+    if (currentIndex === 2) {
+      setTransitionEnabled(false);
+      setCurrentIndex(testimonials.length + 2);
+    }
+  };
+
+  useEffect(() => {
+    if (!transitionEnabled) {
+      const timeout = setTimeout(() => {
+        setTransitionEnabled(true);
+      }, 50);
+      return () => clearTimeout(timeout);
+    }
+  }, [transitionEnabled]);
+
+  // Autoplay
+  useEffect(() => {
+    const autoPlay = setInterval(handleNext, 4000);
+    return () => clearInterval(autoPlay);
+  }, []);
+  // --- End New Carousel Logic ---
 
   useEffect(() => {
     if (session) {
@@ -25,18 +124,22 @@ export default function Home() {
     setIsVisible(true);
   }, []);
 
+  // DELETE THE OLD `getVisibleTestimonials` and `handleTestimonialChange` functions
+  // Old state like activeTestimonial, isTransitioning, slideDirection are no longer needed.
+  // The old useEffect for auto-rotation should also be removed.
+
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="text-center">
-          <div className="relative mb-6">
-            <div className="animate-spin rounded-full h-32 w-32 border-4 border-blue-200"></div>
+        <div className="flex flex-col items-center justify-center w-full">
+          <div className="relative mb-6" style={{ width: '128px', height: '128px', transform: 'translate(-20px, -16px)' }}>
+            <div className="animate-spin rounded-full h-32 w-32 border-4 border-blue-200 absolute top-0 left-0"></div>
             <div className="animate-spin rounded-full h-32 w-32 border-t-4 border-blue-600 absolute top-0 left-0"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <img src="/trace_logo.png" alt="TRACE" className="h-16 w-16" />
+            <div className="absolute inset-0 flex items-center justify-center" style={{ transform: 'translate(20px, 16px)' }}>
+              <img src="/trace_logo.png" alt="Trace" className="h-16 w-16" />
             </div>
           </div>
-          <p className="text-xl text-gray-600 font-medium">Loading TRACE...</p>
+          <p className="text-xl text-gray-600 font-medium">Loading Trace...</p>
         </div>
       </div>
     );
@@ -44,29 +147,35 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <img src="/trace_logo.png" alt="TRACE" className="h-8 w-8 mr-3" />
-              <h1 className="text-2xl font-bold text-[#222e3e]">TRACE</h1>
-            </div>
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Features</a>
-              <a href="#benefits" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Benefits</a>
-              <a href="#testimonials" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Testimonials</a>
-              <Link href="/auth/signin" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Sign In</Link>
-              <Link href="/auth/signup" className="bg-[#222e3e] text-white px-6 py-2 rounded-lg hover:bg-[#1a242f] transition-colors">Get Started</Link>
+      {/* Show global header for authenticated users, landing page nav for unauthenticated */}
+      {session ? (
+        <Header />
+      ) : (
+        <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <img src="/trace_logo.png" alt="TRACE" className="h-8 w-8 mr-3" />
+                <h1 className="text-2xl font-bold text-[#222e3e]">TRACE</h1>
+              </div>
+              <div className="hidden md:flex items-center space-x-8">
+                <a href="#features" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Features</a>
+                <a href="#benefits" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Benefits</a>
+                <a href="#testimonials" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Testimonials</a>
+                <Link href="/about" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">About Us</Link>
+                <Link href="/contact" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Contact Us</Link>
+                <Link href="/auth/signin" className="text-[#767e8b] hover:text-[#222e3e] transition-colors">Sign In</Link>
+                <Link href="/auth/signup" className="bg-[#222e3e] text-white px-6 py-2 rounded-lg hover:bg-[#1a242f] transition-colors">Get Started</Link>
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      )}
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className={`${session ? 'pt-20' : 'pt-32'} pb-20 px-4 sm:px-6 lg:px-8`}>
         <div className="max-w-7xl mx-auto text-center">
-          <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+                      <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
             <h1 className="text-5xl md:text-7xl font-bold text-[#222e3e] mb-6 leading-tight">
               AI-Powered Education 
               <span className="block text-[#767e8b]">Intelligence Platform</span>
@@ -403,9 +512,9 @@ export default function Home() {
       </section>
 
       {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 bg-gradient-to-br from-gray-50 to-white">
+      <section id="testimonials" className="py-20 bg-gradient-to-br from-gray-50 to-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`text-center mb-16 transform transition-all duration-1000 delay-700 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+                      <div className={`text-center mb-16 transform transition-all duration-1000 delay-700 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
             <h2 className="text-4xl md:text-5xl font-bold text-[#222e3e] mb-6">
               What educators are saying
             </h2>
@@ -414,109 +523,72 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Testimonial 1 */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300">
-              <div className="flex items-center mb-4">
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-              </div>
-              <p className="text-gray-600 mb-6 italic">
-                &quot;TRACE has revolutionized my teaching workflow. The AI generates complete lesson plans from my uploaded documents in minutes, and the keystroke dynamics analysis provides unprecedented insights into student behavior. It&apos;s like having a research assistant and integrity expert combined.&quot;
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-[#222e3e] rounded-full flex items-center justify-center text-white font-bold">
-                  SM
-                </div>
-                <div className="ml-4">
-                  <h4 className="font-bold text-[#222e3e]">Dr. Sarah Martinez</h4>
-                  <p className="text-gray-500 text-sm">Professor of Computer Science, Stanford University</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 2 */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300">
-              <div className="flex items-center mb-4">
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-              </div>
-              <p className="text-gray-600 mb-6 italic">
-                "The behavioral analysis is incredibly sophisticated. It's helped me identify students who need additional support while maintaining the highest standards of academic integrity."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-[#767e8b] rounded-full flex items-center justify-center text-white font-bold">
-                  MJ
-                </div>
-                <div className="ml-4">
-                  <h4 className="font-bold text-[#222e3e]">Prof. Michael Johnson</h4>
-                  <p className="text-gray-500 text-sm">Department of Psychology, Harvard University</p>
-                </div>
+          <div className="relative">
+            <div className="overflow-hidden">
+              <div 
+                className="flex"
+                onTransitionEnd={handleTransitionEnd}
+                style={{
+                  transform: `translateX(-${currentIndex * (100 / 3)}%)`,
+                  transition: transitionEnabled ? `transform ${TRANSITION_DURATION}ms ease-in-out` : 'none',
+                }}
+              >
+                {extendedTestimonials.map((testimonial, index) => (
+                  <div
+                    key={`${testimonial.id}-${index}`}
+                    className="flex-shrink-0"
+                    style={{ width: `${100 / 3}%`, padding: '0 1rem' }}
+                  >
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 h-full flex flex-col">
+                      <div className="flex items-center mb-4">
+                        {[...Array(5)].map((_, i) => (
+                          <svg key={i} className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                          </svg>
+                        ))}
+                      </div>
+                      <div className="flex-grow">
+                        <p className="text-gray-600 mb-6 italic text-lg line-clamp-4">&ldquo;{testimonial.text}&rdquo;</p>
+                      </div>
+                      <div className="flex items-center mt-4">
+                        <div className="w-12 h-12 bg-[#222e3e] rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                          {testimonial.initials}
+                        </div>
+                        <div className="ml-4 min-w-0">
+                          <h4 className="font-bold text-[#222e3e] truncate">{testimonial.author}</h4>
+                          <p className="text-gray-500 text-sm truncate">{testimonial.role}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Testimonial 3 */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300">
-              <div className="flex items-center mb-4">
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-                <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                </svg>
-              </div>
-              <p className="text-gray-600 mb-6 italic">
-                "As an administrator, TRACE has given us institutional-level insights that have improved our academic integrity policies campus-wide. The compliance features are excellent."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-[#222e3e] rounded-full flex items-center justify-center text-white font-bold">
-                  LD
-                </div>
-                <div className="ml-4">
-                  <h4 className="font-bold text-[#222e3e]">Lisa Davis</h4>
-                  <p className="text-gray-500 text-sm">VP Academic Affairs, MIT</p>
-                </div>
-              </div>
+            {/* Navigation Dots */}
+            <div className="flex justify-center mt-8 space-x-2">
+              {testimonials.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentIndex(index + 3)}
+                  disabled={!transitionEnabled}
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${index === (currentIndex - 3) % testimonials.length ? 'bg-[#222e3e] w-6' : 'bg-gray-300 hover:bg-gray-400'}`}
+                  aria-label={`Go to testimonial ${index + 1}`}
+                />
+              ))}
             </div>
+
+            {/* Navigation Arrows */}
+            <button onClick={handlePrev} disabled={!transitionEnabled} className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-4 w-12 h-12 rounded-full bg-white shadow-lg flex items-center justify-center text-[#222e3e] hover:bg-gray-50 transition-all focus:outline-none" aria-label="Previous testimonial">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <button onClick={handleNext} disabled={!transitionEnabled} className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-4 w-12 h-12 rounded-full bg-white shadow-lg flex items-center justify-center text-[#222e3e] hover:bg-gray-50 transition-all focus:outline-none" aria-label="Next testimonial">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
           </div>
         </div>
       </section>
-
+      
       {/* Call to Action Section */}
       <section className="py-20 bg-[#222e3e]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -581,7 +653,7 @@ export default function Home() {
             <div>
               <h4 className="font-bold text-[#222e3e] mb-4">Company</h4>
               <ul className="space-y-3 text-gray-600">
-                <li><a href="#" className="hover:text-[#222e3e] transition-colors">About Us</a></li>
+                <li><Link href="/about" className="hover:text-[#222e3e] transition-colors">About Us</Link></li>
                 <li><a href="#" className="hover:text-[#222e3e] transition-colors">Careers</a></li>
                 <li><a href="#" className="hover:text-[#222e3e] transition-colors">Blog</a></li>
                 <li><a href="#" className="hover:text-[#222e3e] transition-colors">Press</a></li>
@@ -609,7 +681,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
-
+      
       {/* Hidden demo links for functionality */}
       <div style={{ display: 'none' }}>
         <Link href="/student">Student Dashboard</Link>

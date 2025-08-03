@@ -14,16 +14,32 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "10")
+    const classId = searchParams.get("classId") // New: Get classId from query params
     const skip = (page - 1) * limit
 
-    let whereClause = {}
+    let whereClause: any = {}
     
     if (session.user.role === "PROFESSOR") {
-      // Professors see lessons they created
+      // Professors see lessons they created, filtered by classId if provided
       whereClause = { professorId: session.user.id }
+      if (classId) {
+        whereClause.classId = classId
+      }
     } else if (session.user.role === "STUDENT") {
-      // Students see published lessons
+      // Students see published lessons for classes they are enrolled in
       whereClause = { status: "PUBLISHED" }
+      if (classId) {
+        // If a specific classId is provided, filter by it
+        whereClause.classId = classId
+      } else {
+        // Otherwise, get all classes the student is enrolled in
+        const studentClasses = await prisma.studentOnClass.findMany({
+          where: { studentId: session.user.id },
+          select: { classId: true },
+        })
+        const enrolledClassIds = studentClasses.map((sc: { classId: string }) => sc.classId)
+        whereClause.classId = { in: enrolledClassIds }
+      }
     } else {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -37,6 +53,12 @@ export async function GET(req: NextRequest) {
               id: true,
               name: true,
               email: true
+            }
+          },
+          class: { // New: Include class information
+            select: {
+              id: true,
+              name: true
             }
           },
           sections: {
@@ -119,21 +141,50 @@ export async function POST(req: NextRequest) {
       sections = [],
       status = "DRAFT",
       sourceType = "manual",
-      sourceS3Key
+      sourceS3Key,
+      classId // New: Add classId to the request body
+    }: { 
+      title: string; 
+      description: string; 
+      subject?: string;
+      topic?: string;
+      difficulty?: string;
+      estimatedTime?: number; 
+      learningObjectives?: string[];
+      content: string;
+      resources?: string[];
+      sections?: any[];
+      status?: string;
+      sourceType?: string;
+      sourceS3Key?: string;
+      classId: string; // New: classId is required
     } = await req.json()
 
-    if (!title || !description || !content) {
+    if (!title || !description || !content || !classId) { // New: classId is required
       return NextResponse.json(
-        { error: "Title, description, and content are required" },
+        { error: "Title, description, content, and class are required" },
         { status: 400 }
       )
     }
 
+    // Verify professor owns the class
+    const professorOwnsClass = await prisma.class.findFirst({
+      where: {
+        id: classId,
+        professorId: session.user.id,
+      },
+    });
+
+    if (!professorOwnsClass) {
+      return NextResponse.json({ error: "Professor does not own this class" }, { status: 403 });
+    }
+
     // Create lesson with sections in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Parameters<typeof prisma.$transaction>[0]) => {
       const lesson = await tx.lesson.create({
         data: {
           professorId: session.user.id,
+          classId, // New: Add classId to lesson creation
           title,
           description,
           subject,
@@ -174,8 +225,35 @@ export async function POST(req: NextRequest) {
               email: true
             }
           },
+          class: { // New: Include class information after creation
+            select: {
+              id: true,
+              name: true
+            }
+          },
           sections: {
             orderBy: { order: 'asc' }
+          },
+          progress: session.user.role === "PROFESSOR" ? {
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          } : {
+            where: { studentId: session.user.id },
+            select: {
+              id: true,
+              status: true,
+              progressData: true,
+              timeSpent: true,
+              completedAt: true,
+              lastAccessAt: true
+            }
           },
           _count: {
             select: {

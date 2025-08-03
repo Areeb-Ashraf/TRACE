@@ -3,13 +3,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AI_CONFIG, ASSIGNMENT_PROMPTS, ERROR_MESSAGES } from './config';
 
 interface LessonRequest {
-  subject: string;
+  subject?: string; // Made optional
   topic: string;
   learningObjectives: string[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   duration: number;
   requirements?: string;
-  documentContent?: string; // For document-based lessons
+  sourceType: 'manual' | 'document';
+  documentContent?: string;
+  classId: string; // Added classId
 }
 
 interface LessonSection {
@@ -146,7 +148,8 @@ export class LessonCreatorService {
   }
 
   private validateLessonRequest(request: LessonRequest): void {
-    if (!request.subject || !request.topic || !request.learningObjectives) {
+    // Removed subject from validation, now requires topic, learningObjectives, and classId
+    if (!request.topic || !request.learningObjectives || !request.classId) {
       throw new Error(ERROR_MESSAGES.INVALID_INPUT);
     }
 
@@ -166,7 +169,7 @@ export class LessonCreatorService {
 
   private buildLessonPrompt(request: LessonRequest): string {
     return ASSIGNMENT_PROMPTS.lesson
-      .replace('{subject}', request.subject)
+      .replace('{subject}', request.subject || '')
       .replace('{topic}', request.topic)
       .replace('{learningObjectives}', request.learningObjectives.join(', '))
       .replace('{difficulty}', request.difficulty)
@@ -177,7 +180,7 @@ export class LessonCreatorService {
   private buildDocumentLessonPrompt(request: LessonRequest): string {
     return ASSIGNMENT_PROMPTS.lessonFromDocument
       .replace('{documentContent}', request.documentContent || '')
-      .replace('{subject}', request.subject)
+      .replace('{subject}', request.subject || '')
       .replace('{topic}', request.topic)
       .replace('{learningObjectives}', request.learningObjectives.join(', '))
       .replace('{difficulty}', request.difficulty)
